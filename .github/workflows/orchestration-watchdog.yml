@@ -375,6 +375,13 @@ jobs:
             PR_BRANCH=$(echo "$PR" | jq -r '.headRefName')
             MERGEABLE=$(echo "$PR" | jq -r '.mergeable')
 
+            # GitHub may return UNKNOWN for recently-changed PRs. Retry once.
+            if [ "$MERGEABLE" = "UNKNOWN" ]; then
+              sleep 5
+              MERGEABLE=$(gh pr view "$PR_NUM" --json mergeable --jq '.mergeable' 2>/dev/null || echo "UNKNOWN")
+              echo "PR #$PR_NUM mergeable re-checked: $MERGEABLE"
+            fi
+
             PR_CREATED_EPOCH=$(date -d "$PR_CREATED" +%s 2>/dev/null || echo "0")
             ELAPSED_HOURS=$(( (NOW_EPOCH - PR_CREATED_EPOCH) / 3600 ))
             ELAPSED_MINUTES=$(( (NOW_EPOCH - PR_CREATED_EPOCH) / 60 ))
@@ -383,8 +390,8 @@ jobs:
             ALL_PASS=$(echo "$PR_CHECKS" | grep -c "pass" || echo "0")
             ANY_FAIL=$(echo "$PR_CHECKS" | grep -c "fail" || echo "0")
 
-            # Handle merge conflicts
-            if [ "$MERGEABLE" = "CONFLICTING" ]; then
+            # Handle merge conflicts (CONFLICTING or still UNKNOWN after retry)
+            if [ "$MERGEABLE" = "CONFLICTING" ] || [ "$MERGEABLE" = "UNKNOWN" ]; then
               EXISTING_FIX=$(gh pr view "$PR_NUM" --json comments --jq '[.comments[] | select(.body | contains("please rebase"))] | length' 2>/dev/null || echo "0")
               if [ "$EXISTING_FIX" -eq 0 ]; then
                 echo "PR #$PR_NUM has merge conflicts. Requesting rebase."
