@@ -4,8 +4,17 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
 import { logger } from "./logger";
 import { loginInput, validateCredentials } from "@/server/services/auth.service";
+import { authenticateSsoUser } from "@/server/services/sso-auth.service";
 import { authConfig } from "./auth.config";
 import type { GlobalRole } from "@prisma/client";
+import { z } from "zod";
+
+const ssoLoginInput = z.object({
+  providerId: z.string().min(1),
+  externalId: z.string().min(1),
+  attributes: z.record(z.string(), z.string()).default({}),
+  groups: z.array(z.string()).default([]),
+});
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -13,6 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
+      id: "credentials",
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -30,6 +40,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           logger.info({ userId: user.id }, "User authenticated via credentials");
         }
 
+        return user;
+      },
+    }),
+    CredentialsProvider({
+      id: "sso",
+      name: "SSO",
+      credentials: {
+        providerId: { label: "Provider ID", type: "text" },
+        externalId: { label: "External ID", type: "text" },
+        attributes: { label: "Attributes", type: "text" },
+        groups: { label: "Groups", type: "text" },
+      },
+      async authorize(credentials) {
+        const parsed = ssoLoginInput.safeParse({
+          providerId: credentials?.providerId,
+          externalId: credentials?.externalId,
+          attributes:
+            typeof credentials?.attributes === "string" ? JSON.parse(credentials.attributes) : {},
+          groups: typeof credentials?.groups === "string" ? JSON.parse(credentials.groups) : [],
+        });
+
+        if (!parsed.success) {
+          return null;
+        }
+
+        const user = await authenticateSsoUser(parsed.data);
         return user;
       },
     }),

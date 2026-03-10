@@ -17,10 +17,24 @@ export const authConfig: NextAuthConfig = {
     // Credentials provider defined here for type compatibility;
     // the actual authorize function is overridden in auth.ts
     CredentialsProvider({
+      id: "credentials",
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+      },
+      authorize: () => null,
+    }),
+    // SSO provider stub for edge compatibility;
+    // the actual authorize function is overridden in auth.ts
+    CredentialsProvider({
+      id: "sso",
+      name: "SSO",
+      credentials: {
+        providerId: { label: "Provider ID", type: "text" },
+        externalId: { label: "External ID", type: "text" },
+        attributes: { label: "Attributes", type: "text" },
+        groups: { label: "Groups", type: "text" },
       },
       authorize: () => null,
     }),
@@ -31,7 +45,10 @@ export const authConfig: NextAuthConfig = {
       const pathname = nextUrl.pathname;
 
       const isPublicPath =
-        pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/register");
+        pathname === "/" ||
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/register") ||
+        pathname.startsWith("/api/auth/sso");
 
       if (isPublicPath) {
         return true;

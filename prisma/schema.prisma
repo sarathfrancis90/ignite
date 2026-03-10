@@ -645,3 +645,90 @@ model Contact {
   @@index([linkedUserId])
   @@map("contacts")
 }
+
+// ── SSO Configuration Models ──────────────────────────────────
+
+enum SsoProviderType {
+  SAML
+  LDAP
+
+  @@map("sso_provider_type")
+}
+
+enum SsoGroupMappingTargetType {
+  GLOBAL_ROLE
+  USER_GROUP
+
+  @@map("sso_group_mapping_target_type")
+}
+
+model SsoProvider {
+  id          String          @id @default(cuid())
+  name        String
+  type        SsoProviderType
+  isEnabled   Boolean         @default(false) @map("is_enabled")
+  displayName String          @map("display_name")
+
+  // SAML-specific fields
+  samlEntityId       String? @map("saml_entity_id")
+  samlSsoUrl         String? @map("saml_sso_url")
+  samlSloUrl         String? @map("saml_slo_url")
+  samlCertificate    String? @map("saml_certificate") @db.Text
+  samlMetadataUrl    String? @map("saml_metadata_url")
+  samlSignRequests   Boolean @default(false) @map("saml_sign_requests")
+  samlWantAssertionsSigned Boolean @default(true) @map("saml_want_assertions_signed")
+
+  // LDAP-specific fields
+  ldapUrl            String? @map("ldap_url")
+  ldapBindDn         String? @map("ldap_bind_dn")
+  ldapBindCredential String? @map("ldap_bind_credential")
+  ldapSearchBase     String? @map("ldap_search_base")
+  ldapSearchFilter   String? @map("ldap_search_filter")
+  ldapUseTls         Boolean @default(false) @map("ldap_use_tls")
+  ldapGroupSearchBase  String? @map("ldap_group_search_base")
+  ldapGroupSearchFilter String? @map("ldap_group_search_filter")
+
+  // Auto-provisioning settings
+  autoProvisionUsers Boolean @default(true) @map("auto_provision_users")
+  defaultRole        GlobalRole @default(MEMBER) @map("default_role")
+
+  // Metadata
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  attributeMappings SsoAttributeMapping[]
+  groupMappings     SsoGroupMapping[]
+
+  @@unique([name])
+  @@index([type])
+  @@index([isEnabled])
+  @@map("sso_providers")
+}
+
+model SsoAttributeMapping {
+  id             String @id @default(cuid())
+  ssoProviderId  String @map("sso_provider_id")
+  sourceAttribute String @map("source_attribute")
+  targetField    String @map("target_field")
+
+  ssoProvider SsoProvider @relation(fields: [ssoProviderId], references: [id], onDelete: Cascade)
+
+  @@unique([ssoProviderId, targetField])
+  @@index([ssoProviderId])
+  @@map("sso_attribute_mappings")
+}
+
+model SsoGroupMapping {
+  id            String                   @id @default(cuid())
+  ssoProviderId String                   @map("sso_provider_id")
+  externalGroup String                   @map("external_group")
+  targetType    SsoGroupMappingTargetType @map("target_type")
+  targetValue   String                   @map("target_value") // role name or group ID
+
+  ssoProvider SsoProvider @relation(fields: [ssoProviderId], references: [id], onDelete: Cascade)
+
+  @@unique([ssoProviderId, externalGroup, targetType])
+  @@index([ssoProviderId])
+  @@map("sso_group_mappings")
+}
