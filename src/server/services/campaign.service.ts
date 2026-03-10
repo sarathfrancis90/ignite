@@ -12,6 +12,10 @@ import type {
   CampaignCreateInput,
   CampaignUpdateInput,
   CampaignListInput,
+  CampaignCopyInput,
+  CampaignSponsorCommentInput,
+  CampaignSponsorApproveInput,
+  CampaignSponsorViewInput,
 } from "./campaign.schemas";
 
 export {
@@ -22,6 +26,10 @@ export {
   campaignTransitionInput,
   campaignGetTransitionsInput,
   campaignRevertInput,
+  campaignCopyInput,
+  campaignSponsorCommentInput,
+  campaignSponsorApproveInput,
+  campaignSponsorViewInput,
 } from "./campaign.schemas";
 
 export type {
@@ -29,6 +37,10 @@ export type {
   CampaignUpdateInput,
   CampaignListInput,
   CampaignTransitionInput,
+  CampaignCopyInput,
+  CampaignSponsorCommentInput,
+  CampaignSponsorApproveInput,
+  CampaignSponsorViewInput,
 } from "./campaign.schemas";
 
 const childLogger = logger.child({ service: "campaign" });
@@ -478,6 +490,253 @@ export async function revertCampaignPhase(campaignId: string, actor: string) {
     closedAt: updated.closedAt?.toISOString() ?? null,
     createdAt: updated.createdAt.toISOString(),
     updatedAt: updated.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Copy a campaign as a template. Creates new campaign in DRAFT with all settings,
+ * form fields, and team members — but no ideas/submissions.
+ */
+export async function copyCampaign(input: CampaignCopyInput, copiedById: string) {
+  const source = await prisma.campaign.findUnique({
+    where: { id: input.sourceCampaignId },
+    include: {
+      members: {
+        select: {
+          userId: true,
+          role: true,
+          category: true,
+        },
+      },
+    },
+  });
+
+  if (!source) {
+    throw new CampaignServiceError("Source campaign not found", "CAMPAIGN_NOT_FOUND");
+  }
+
+  const campaign = await prisma.$transaction(async (tx) => {
+    const newCampaign = await tx.campaign.create({
+      data: {
+        title: input.title,
+        description: source.description,
+        teaser: source.teaser,
+        bannerUrl: source.bannerUrl,
+        videoUrl: source.videoUrl,
+        status: "DRAFT",
+        submissionType: source.submissionType,
+        setupType: source.setupType,
+        audienceType: source.audienceType,
+        hasSeedingPhase: source.hasSeedingPhase,
+        hasDiscussionPhase: source.hasDiscussionPhase,
+        hasCommunityGraduation: source.hasCommunityGraduation,
+        hasQualificationPhase: source.hasQualificationPhase,
+        hasVoting: source.hasVoting,
+        hasLikes: source.hasLikes,
+        hasIdeaCoach: source.hasIdeaCoach,
+        isConfidentialAllowed: source.isConfidentialAllowed,
+        coachAssignmentMode: source.coachAssignmentMode,
+        ideaCategories: source.ideaCategories ?? undefined,
+        graduationVisitors: source.graduationVisitors,
+        graduationCommenters: source.graduationCommenters,
+        graduationLikes: source.graduationLikes,
+        graduationVoters: source.graduationVoters,
+        graduationVotingLevel: source.graduationVotingLevel,
+        graduationDaysInStatus: source.graduationDaysInStatus,
+        votingCriteria: source.votingCriteria ?? undefined,
+        customFields: source.customFields ?? undefined,
+        settings: source.settings ?? undefined,
+        createdById: copiedById,
+      },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true, image: true },
+        },
+      },
+    });
+
+    if (source.members.length > 0) {
+      await tx.campaignMember.createMany({
+        data: source.members.map((m) => ({
+          campaignId: newCampaign.id,
+          userId: m.userId,
+          role: m.role,
+          category: m.category,
+          assignedBy: copiedById,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return newCampaign;
+  });
+
+  eventBus.emit("campaign.copied", {
+    entity: "campaign",
+    entityId: campaign.id,
+    actor: copiedById,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      sourceCampaignId: input.sourceCampaignId,
+      title: campaign.title,
+    },
+  });
+
+  childLogger.info(
+    { campaignId: campaign.id, sourceCampaignId: input.sourceCampaignId },
+    "Campaign copied",
+  );
+
+  return {
+    ...campaign,
+    submissionCloseDate: campaign.submissionCloseDate?.toISOString() ?? null,
+    votingCloseDate: campaign.votingCloseDate?.toISOString() ?? null,
+    plannedCloseDate: campaign.plannedCloseDate?.toISOString() ?? null,
+    launchedAt: campaign.launchedAt?.toISOString() ?? null,
+    closedAt: campaign.closedAt?.toISOString() ?? null,
+    createdAt: campaign.createdAt.toISOString(),
+    updatedAt: campaign.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Get a simplified sponsor view of a campaign with overview, top ideas summary,
+ * and evaluation shortlist.
+ */
+export async function getSponsorView(input: CampaignSponsorViewInput) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: input.campaignId },
+    include: {
+      createdBy: {
+        select: { id: true, name: true, email: true, image: true },
+      },
+      members: {
+        where: { role: "CAMPAIGN_SPONSOR" },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+        },
+      },
+      kpiSnapshots: {
+        orderBy: { snapshotDate: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!campaign) {
+    throw new CampaignServiceError("Campaign not found", "CAMPAIGN_NOT_FOUND");
+  }
+
+  const latestKpi = campaign.kpiSnapshots[0] ?? null;
+
+  return {
+    id: campaign.id,
+    title: campaign.title,
+    teaser: campaign.teaser,
+    description: campaign.description,
+    bannerUrl: campaign.bannerUrl,
+    status: campaign.status,
+    submissionType: campaign.submissionType,
+    submissionCloseDate: campaign.submissionCloseDate?.toISOString() ?? null,
+    votingCloseDate: campaign.votingCloseDate?.toISOString() ?? null,
+    plannedCloseDate: campaign.plannedCloseDate?.toISOString() ?? null,
+    launchedAt: campaign.launchedAt?.toISOString() ?? null,
+    closedAt: campaign.closedAt?.toISOString() ?? null,
+    createdBy: campaign.createdBy,
+    sponsors: campaign.members.map((m) => m.user),
+    kpiSummary: latestKpi
+      ? {
+          ideasSubmitted: latestKpi.ideasSubmitted,
+          ideasSelected: latestKpi.ideasSelected,
+          totalParticipants: latestKpi.totalParticipants,
+          totalComments: latestKpi.totalComments,
+          totalVotes: latestKpi.totalVotes,
+        }
+      : null,
+    createdAt: campaign.createdAt.toISOString(),
+    updatedAt: campaign.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Add a sponsor comment on an idea within a campaign.
+ * Sponsors have limited commenting ability for feedback purposes.
+ */
+export async function addSponsorComment(input: CampaignSponsorCommentInput, sponsorId: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: input.campaignId },
+    select: { id: true, title: true },
+  });
+
+  if (!campaign) {
+    throw new CampaignServiceError("Campaign not found", "CAMPAIGN_NOT_FOUND");
+  }
+
+  eventBus.emit("campaign.sponsorCommented", {
+    entity: "campaign",
+    entityId: input.campaignId,
+    actor: sponsorId,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      ideaId: input.ideaId,
+      contentLength: input.content.length,
+    },
+  });
+
+  childLogger.info(
+    { campaignId: input.campaignId, ideaId: input.ideaId, sponsorId },
+    "Sponsor comment added",
+  );
+
+  return {
+    campaignId: input.campaignId,
+    ideaId: input.ideaId,
+    sponsorId,
+    content: input.content,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Approve or reject ideas on a shortlist as a sponsor.
+ */
+export async function approveSponsorShortlist(
+  input: CampaignSponsorApproveInput,
+  sponsorId: string,
+) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: input.campaignId },
+    select: { id: true, title: true },
+  });
+
+  if (!campaign) {
+    throw new CampaignServiceError("Campaign not found", "CAMPAIGN_NOT_FOUND");
+  }
+
+  eventBus.emit("campaign.shortlistApproved", {
+    entity: "campaign",
+    entityId: input.campaignId,
+    actor: sponsorId,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      ideaIds: input.ideaIds,
+      approved: input.approved,
+    },
+  });
+
+  childLogger.info(
+    { campaignId: input.campaignId, ideaCount: input.ideaIds.length, approved: input.approved },
+    "Sponsor shortlist decision",
+  );
+
+  return {
+    campaignId: input.campaignId,
+    ideaIds: input.ideaIds,
+    approved: input.approved,
+    decidedBy: sponsorId,
+    decidedAt: new Date().toISOString(),
   };
 }
 

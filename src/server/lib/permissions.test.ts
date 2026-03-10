@@ -146,6 +146,54 @@ describe("permissions", () => {
     it("CHANNEL_CONTRIBUTOR cannot manage channel", () => {
       expect(resourceRoleHasPermission("CHANNEL_CONTRIBUTOR", Action.CHANNEL_MANAGE)).toBe(false);
     });
+
+    it("CAMPAIGN_SPONSOR can read campaigns", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.CAMPAIGN_READ)).toBe(true);
+    });
+
+    it("CAMPAIGN_SPONSOR can view sponsor view", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.CAMPAIGN_SPONSOR_VIEW)).toBe(
+        true,
+      );
+    });
+
+    it("CAMPAIGN_SPONSOR can comment on ideas", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.CAMPAIGN_SPONSOR_COMMENT)).toBe(
+        true,
+      );
+    });
+
+    it("CAMPAIGN_SPONSOR can approve shortlists", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.CAMPAIGN_SPONSOR_APPROVE)).toBe(
+        true,
+      );
+    });
+
+    it("CAMPAIGN_SPONSOR can read ideas", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.IDEA_READ)).toBe(true);
+    });
+
+    it("CAMPAIGN_SPONSOR can view evaluation results", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.EVALUATION_VIEW_RESULTS)).toBe(
+        true,
+      );
+    });
+
+    it("CAMPAIGN_SPONSOR cannot update campaigns", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.CAMPAIGN_UPDATE)).toBe(false);
+    });
+
+    it("CAMPAIGN_SPONSOR cannot transition campaigns", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_SPONSOR", Action.CAMPAIGN_TRANSITION)).toBe(false);
+    });
+
+    it("CAMPAIGN_MANAGER can copy campaigns", () => {
+      expect(resourceRoleHasPermission("CAMPAIGN_MANAGER", Action.CAMPAIGN_COPY)).toBe(true);
+    });
+
+    it("INNOVATION_MANAGER can copy campaigns", () => {
+      expect(globalRoleHasPermission("INNOVATION_MANAGER", Action.CAMPAIGN_COPY)).toBe(true);
+    });
   });
 
   describe("GLOBAL_ROLE_PERMISSIONS structure", () => {
@@ -176,6 +224,7 @@ describe("permissions", () => {
         "CAMPAIGN_MODERATOR",
         "CAMPAIGN_EVALUATOR",
         "CAMPAIGN_SEEDER",
+        "CAMPAIGN_SPONSOR",
       ] as const) {
         expect(RESOURCE_ROLE_PERMISSIONS[role]).toContain(Action.CAMPAIGN_READ);
       }

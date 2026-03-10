@@ -82,7 +82,32 @@ export const campaignRevertInput = z.object({
   id: z.string().cuid(),
 });
 
+export const campaignCopyInput = z.object({
+  sourceCampaignId: z.string().cuid(),
+  title: z.string().min(1, "Title is required").max(200),
+});
+
+export const campaignSponsorCommentInput = z.object({
+  campaignId: z.string().cuid(),
+  ideaId: z.string().cuid(),
+  content: z.string().min(1, "Comment is required").max(5000),
+});
+
+export const campaignSponsorApproveInput = z.object({
+  campaignId: z.string().cuid(),
+  ideaIds: z.array(z.string().cuid()).min(1, "At least one idea is required"),
+  approved: z.boolean(),
+});
+
+export const campaignSponsorViewInput = z.object({
+  campaignId: z.string().cuid(),
+});
+
 export type CampaignCreateInput = z.infer<typeof campaignCreateInput>;
 export type CampaignUpdateInput = z.infer<typeof campaignUpdateInput>;
 export type CampaignListInput = z.infer<typeof campaignListInput>;
 export type CampaignTransitionInput = z.infer<typeof campaignTransitionInput>;
+export type CampaignCopyInput = z.infer<typeof campaignCopyInput>;
+export type CampaignSponsorCommentInput = z.infer<typeof campaignSponsorCommentInput>;
+export type CampaignSponsorApproveInput = z.infer<typeof campaignSponsorApproveInput>;
+export type CampaignSponsorViewInput = z.infer<typeof campaignSponsorViewInput>;

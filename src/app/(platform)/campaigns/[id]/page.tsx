@@ -7,6 +7,7 @@ import { CampaignHeader } from "@/components/campaigns/CampaignHeader";
 import { CampaignLifecycleBar } from "@/components/campaigns/CampaignLifecycleBar";
 import { CampaignPhaseControls } from "@/components/campaigns/CampaignPhaseControls";
 import { CampaignCockpit } from "@/components/campaigns/CampaignCockpit";
+import { CopyCampaignButton } from "@/components/campaigns/CopyCampaignButton";
 import { trpc } from "@/lib/trpc";
 
 const TABS = [
@@ -124,6 +125,10 @@ export default function CampaignDetailPage() {
                 }
               />
               <StatCard label="Created" value={new Date(campaign.createdAt).toLocaleDateString()} />
+            </div>
+
+            <div className="flex gap-3">
+              <CopyCampaignButton campaignId={campaign.id} campaignTitle={campaign.title} />
             </div>
           </div>
         )}
