@@ -1,0 +1,100 @@
+name: Branch Cleanup
+
+# Cleans up stale branches:
+# - Merged branches that weren't auto-deleted
+# - Orphaned Claude branches (no open PR, older than 24h)
+# - Branches from closed (unmerged) PRs
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Every 6 hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Clean Up Stale Branches
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete merged branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          echo "=== Cleaning up merged branches ==="
+
+          # Get all remote branches except main
+          BRANCHES=$(git branch -r --merged origin/main | grep -v 'origin/main' | grep -v 'origin/HEAD' | sed 's/origin\///')
+
+          for BRANCH in $BRANCHES; do
+            echo "Deleting merged branch: $BRANCH"
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+          done
+
+      - name: Delete orphaned Claude branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          echo "=== Cleaning up orphaned Claude branches ==="
+          NOW_EPOCH=$(date +%s)
+          STALE_THRESHOLD_HOURS=24
+
+          # Get all remote Claude branches
+          CLAUDE_BRANCHES=$(git branch -r | grep 'origin/claude/' | sed 's/origin\///')
+
+          for BRANCH in $CLAUDE_BRANCHES; do
+            # Check if there's an open PR for this branch
+            OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq 'length' 2>/dev/null || echo "0")
+
+            if [ "$OPEN_PR" -gt 0 ]; then
+              echo "Skipping $BRANCH (has open PR)"
+              continue
+            fi
+
+            # Check branch age via last commit date
+            LAST_COMMIT_DATE=$(git log -1 --format="%ci" "origin/$BRANCH" 2>/dev/null || echo "")
+            if [ -z "$LAST_COMMIT_DATE" ]; then
+              continue
+            fi
+
+            COMMIT_EPOCH=$(date -d "$LAST_COMMIT_DATE" +%s 2>/dev/null || echo "0")
+            AGE_HOURS=$(( (NOW_EPOCH - COMMIT_EPOCH) / 3600 ))
+
+            if [ "$AGE_HOURS" -ge "$STALE_THRESHOLD_HOURS" ]; then
+              echo "Deleting orphaned branch: $BRANCH (${AGE_HOURS}h old, no open PR)"
+              git push origin --delete "$BRANCH" 2>/dev/null || true
+            else
+              echo "Keeping $BRANCH (only ${AGE_HOURS}h old)"
+            fi
+          done
+
+      - name: Delete branches from closed unmerged PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          echo "=== Cleaning up branches from closed unmerged PRs ==="
+
+          # Get recently closed (not merged) PRs
+          CLOSED_PRS=$(gh pr list --state closed --json number,headRefName,mergedAt --limit 50 2>/dev/null || echo "[]")
+
+          echo "$CLOSED_PRS" | jq -r '.[] | select(.mergedAt == null or .mergedAt == "") | .headRefName' | while read -r BRANCH; do
+            if [ -n "$BRANCH" ] && [ "$BRANCH" != "main" ]; then
+              # Check if branch still exists remotely
+              if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+                echo "Deleting branch from closed PR: $BRANCH"
+                git push origin --delete "$BRANCH" 2>/dev/null || true
+              fi
+            fi
+          done
+
+          echo "Branch cleanup complete."

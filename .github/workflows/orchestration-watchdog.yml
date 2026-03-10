@@ -404,6 +404,38 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       # ══════════════════════════════════════════════════════════
+      # 4b. Self-Heal: Fix PR Merge Conflicts
+      # ══════════════════════════════════════════════════════════
+      - name: "Self-heal: Fix PR merge conflicts"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          echo "=== Checking for PRs with merge conflicts ==="
+
+          OPEN_PRS=$(gh pr list --state open --json number,headRefName,mergeable --limit 20 2>/dev/null || echo "[]")
+
+          echo "$OPEN_PRS" | jq -c '.[] | select(.headRefName | startswith("claude/"))' | while read -r PR; do
+            PR_NUM=$(echo "$PR" | jq -r '.number')
+            PR_BRANCH=$(echo "$PR" | jq -r '.headRefName')
+            MERGEABLE=$(echo "$PR" | jq -r '.mergeable')
+
+            if [ "$MERGEABLE" = "CONFLICTING" ]; then
+              echo "PR #$PR_NUM ($PR_BRANCH) has merge conflicts"
+
+              # Check if we already asked Claude to fix this
+              EXISTING_FIX=$(gh pr view "$PR_NUM" --json comments --jq '[.comments[] | select(.body | contains("please rebase"))] | length' 2>/dev/null || echo "0")
+
+              if [ "$EXISTING_FIX" -eq 0 ]; then
+                echo "Requesting Claude to rebase PR #$PR_NUM"
+                gh pr comment "$PR_NUM" --body "@claude This PR has merge conflicts with main. Please rebase this branch on the latest main, resolve any conflicts, and force-push. Keep our changes where they conflict with main." || true
+              else
+                echo "Already requested rebase for PR #$PR_NUM"
+              fi
+            fi
+          done
+
+      # ══════════════════════════════════════════════════════════
       # 5. CI/CD Pipeline Health
       # ══════════════════════════════════════════════════════════
       - name: "Check CI/CD pipeline health"

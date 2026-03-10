@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
-      contents: read
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -104,6 +105,19 @@ jobs:
           Assigning to Claude for autonomous development."
 
           echo "Successfully triggered Story $NEXT_STORY"
+
+      - name: Update Kanban for completed story
+        if: steps.extract.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: |
+          set +e
+          ISSUE_NUM="${{ steps.extract.outputs.issue_number }}"
+          if [ -f ".github/scripts/update-kanban.sh" ]; then
+            chmod +x .github/scripts/update-kanban.sh
+            GH_TOKEN="${PROJECT_TOKEN:-$GH_TOKEN}" .github/scripts/update-kanban.sh --issue "$ISSUE_NUM" --status "Done" || true
+          fi
 
       - name: Post completion summary
         if: steps.chain.outputs.next_issue == '' && steps.extract.outputs.issue_number != ''

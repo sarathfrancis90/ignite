@@ -176,8 +176,20 @@ jobs:
             - Commit your changes with a descriptive message:
               `feat(scope): description` or `fix(scope): description`
 
-            ## STEP 5: Create a Pull Request
-            - Push your branch and create a PR using `gh pr create`
+            ## STEP 5: Rebase on Latest Main & Create a Pull Request
+            Before pushing, ALWAYS rebase on the latest main to prevent conflicts:
+            ```
+            git fetch origin main
+            git rebase origin/main
+            ```
+            If there are conflicts during rebase, resolve them by:
+            - Keeping OUR changes for new files we created
+            - For files that exist on both sides, merge intelligently (keep both features)
+            - After resolving: `git add <files>` then `git rebase --continue`
+
+            Then push and create the PR:
+            - Push your branch: `git push --force-with-lease origin <branch>`
+            - Create a PR using `gh pr create`
             - PR title: clear, concise description of the change
             - PR body MUST include:
               - `Closes #<issue-number>` to auto-link and auto-close the issue
@@ -194,10 +206,11 @@ jobs:
               ```
 
             ## IF TRIGGERED FROM A PR REVIEW (fixing review feedback)
-            If this was triggered by a PR review requesting changes:
+            If this was triggered by a PR review or comment requesting changes:
             - Read the review comments to understand what needs to be fixed
             - Checkout the PR branch (not main)
-            - Fix the issues raised in the review
+            - If asked to rebase, run: `git fetch origin main && git rebase origin/main`, resolve conflicts, then `git push --force-with-lease`
+            - Otherwise, fix the issues raised in the review
             - Run available validation checks
             - Commit and push the fixes to the same branch
             - Post a comment on the PR summarizing what was fixed
