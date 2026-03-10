@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// MODULE 1: USERS
+// ============================================================
+
+enum EmailFrequency {
+  IMMEDIATELY
+  DAILY
+  WEEKLY
+  NEVER
+}
+
+model User {
+  id                String          @id @default(cuid())
+  email             String          @unique
+  passwordHash      String?
+  firstName         String
+  lastName          String
+  displayName       String?
+  avatarUrl         String?
+  bio               String?
+  isActive          Boolean         @default(true)
+  emailFrequency    EmailFrequency  @default(IMMEDIATELY)
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  ideas             Idea[]          @relation("IdeaContributor")
+  comments          Comment[]
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+  followedItems     Follow[]
+
+  @@index([email])
+}
+
+// ============================================================
+// MODULE 3: IDEAS (minimal for comments story)
+// ============================================================
+
+enum IdeaStatus {
+  DRAFT
+  QUALIFICATION
+  COMMUNITY_DISCUSSION
+  HOT
+  EVALUATION
+  SELECTED_CONCEPT
+  IMPLEMENTATION
+  IMPLEMENTED
+  ARCHIVED
+}
+
+model Idea {
+  id               String      @id @default(cuid())
+  referenceNumber  String      @unique @default(cuid())
+  title            String
+  description      String?
+  status           IdeaStatus  @default(DRAFT)
+  commentCount     Int         @default(0)
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  contributorId    String
+  contributor      User        @relation("IdeaContributor", fields: [contributorId], references: [id])
+
+  comments         Comment[]
+
+  @@index([contributorId])
+  @@index([status])
+}
+
+// ============================================================
+// MODULE 3.3: COMMENTS
+// ============================================================
+
+model Comment {
+  id          String    @id @default(cuid())
+  content     String
+  isPrivate   Boolean   @default(false)
+  perspective String?
+
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+
+  ideaId      String?
+  idea        Idea?     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  parentId    String?
+  parent      Comment?  @relation("CommentThread", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentThread")
+
+  isFlagged   Boolean   @default(false)
+  flagCount   Int       @default(0)
+
+  mentions    String[]  @default([])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([ideaId])
+  @@index([parentId])
+  @@index([authorId])
+}
+
+// ============================================================
+// MODULE 10: NOTIFICATIONS & ACTIVITY
+// ============================================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean  @default(false)
+  isEmailed Boolean  @default(false)
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+
+  action     String
+  objectType String
+  objectId   String
+  details    Json?
+
+  createdAt  DateTime @default(now())
+
+  @@index([objectType, objectId])
+  @@index([createdAt])
+}
+
+model Follow {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectType String
+  objectId   String
+
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, objectType, objectId])
+  @@index([userId])
+}
