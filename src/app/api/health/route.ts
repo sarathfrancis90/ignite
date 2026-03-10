@@ -12,7 +12,13 @@ interface HealthCheck {
   };
 }
 
-const prisma = new PrismaClient();
+function getPrisma() {
+  return new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL,
+  });
+}
+
+export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse<HealthCheck>> {
   const checks: HealthCheck["checks"] = {
@@ -23,7 +29,9 @@ export async function GET(): Promise<NextResponse<HealthCheck>> {
   // Check database
   try {
     const dbStart = Date.now();
+    const prisma = getPrisma();
     await prisma.$queryRaw`SELECT 1`;
+    await prisma.$disconnect();
     checks.database = { status: "ok", latency_ms: Date.now() - dbStart };
   } catch (e) {
     checks.database = {
