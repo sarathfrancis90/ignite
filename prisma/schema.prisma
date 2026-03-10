@@ -46,6 +46,7 @@ model User {
   userGroupMembership UserGroupMembership[]
   orgUnitAssignments  UserOrgUnit[]
   createdCampaigns    Campaign[] @relation("CampaignCreatedBy")
+  spaceMemberships    InnovationSpaceMembership[]
 
   @@map("users")
 }
@@ -174,6 +175,57 @@ model UserGroupMembership {
 
   @@unique([userId, groupId])
   @@map("user_group_memberships")
+}
+
+// ── Innovation Space Models ──────────────────────────────────
+
+enum SpaceStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("space_status")
+}
+
+enum SpaceRole {
+  SPACE_ADMIN
+  SPACE_MANAGER
+  SPACE_MEMBER
+
+  @@map("space_role")
+}
+
+model InnovationSpace {
+  id          String      @id @default(cuid())
+  name        String
+  description String?     @db.Text
+  slug        String      @unique
+  logoUrl     String?     @map("logo_url")
+  status      SpaceStatus @default(ACTIVE)
+  settings    Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  memberships InnovationSpaceMembership[]
+
+  @@index([status])
+  @@index([slug])
+  @@map("innovation_spaces")
+}
+
+model InnovationSpaceMembership {
+  id        String    @id @default(cuid())
+  spaceId   String    @map("space_id")
+  userId    String    @map("user_id")
+  role      SpaceRole @default(SPACE_MEMBER)
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+
+  space InnovationSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, userId])
+  @@index([spaceId])
+  @@index([userId])
+  @@map("innovation_space_memberships")
 }
 
 // ── Campaign Models ──────────────────────────────────────────

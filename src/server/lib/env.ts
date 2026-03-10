@@ -17,6 +17,7 @@ export const env = createEnv({
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
     AI_ENABLED: z.string().optional(),
+    FEATURE_INNOVATION_SPACES: z.string().optional(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   },
   runtimeEnv: {
@@ -34,6 +35,7 @@ export const env = createEnv({
     SMTP_USER: process.env.SMTP_USER,
     SMTP_PASS: process.env.SMTP_PASS,
     AI_ENABLED: process.env.AI_ENABLED,
+    FEATURE_INNOVATION_SPACES: process.env.FEATURE_INNOVATION_SPACES,
     NODE_ENV: process.env.NODE_ENV,
   },
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",

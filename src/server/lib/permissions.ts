@@ -57,6 +57,7 @@ export const Action = {
   ADMIN_MANAGE_ORG_UNITS: "admin.manageOrgUnits",
   ADMIN_MANAGE_GROUPS: "admin.manageGroups",
   ADMIN_VIEW_METRICS: "admin.viewMetrics",
+  ADMIN_MANAGE_SPACES: "admin.manageSpaces",
 } as const;
 
 export type ActionType = (typeof Action)[keyof typeof Action];
