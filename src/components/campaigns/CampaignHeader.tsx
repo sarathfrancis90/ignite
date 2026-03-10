@@ -70,7 +70,7 @@ export function CampaignHeader({ campaign }: CampaignHeaderProps) {
         </div>
         {campaign.status === "DRAFT" && (
           <Link
-            href={`/campaigns/${campaign.id}/settings`}
+            href={`/campaigns/${campaign.id}/edit`}
             className={buttonVariants({ variant: "outline" })}
           >
             Edit Campaign
