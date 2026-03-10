@@ -461,18 +461,30 @@ jobs:
           URL="${{ needs.deploy.outputs.url }}"
           echo "Running smoke tests against $URL"
 
-          # Health endpoint
+          # Health endpoint — verify database has tables
           echo "Checking /api/health..."
-          curl -sf "$URL/api/health" | jq .
+          HEALTH=$(curl -sf "$URL/api/health")
+          echo "$HEALTH" | jq .
+          DB_STATUS=$(echo "$HEALTH" | jq -r '.checks.database.status')
+          [ "$DB_STATUS" = "ok" ] || { echo "Database check failed: $DB_STATUS"; exit 1; }
+
+          # Auth providers — verify auth is functional
+          echo "Checking /api/auth/providers..."
+          curl -sf "$URL/api/auth/providers" | jq .
+
+          # Auth session — verify session endpoint works
+          echo "Checking /api/auth/session..."
+          curl -sf "$URL/api/auth/session" | jq .
 
           # Login page loads
           echo "Checking login page..."
           STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$URL/login")
           [ "$STATUS" = "200" ] || { echo "Login page failed: $STATUS"; exit 1; }
 
-          # Static assets load
-          echo "Checking static assets..."
-          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$URL/_next/static/" 2>/dev/null || echo "200")
+          # Protected route redirects to login (307)
+          echo "Checking protected route redirect..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/dashboard")
+          [ "$STATUS" = "307" ] || [ "$STATUS" = "302" ] || { echo "Dashboard should redirect unauthenticated users: got $STATUS"; exit 1; }
 
           echo "All smoke tests passed!"
 

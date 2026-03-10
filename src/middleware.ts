@@ -1,40 +1,26 @@
-import { auth } from "@/server/lib/auth";
-import { NextResponse } from "next/server";
+import NextAuth from "next-auth";
+import { authConfig } from "@/server/lib/auth.config";
 
-const PUBLIC_PATHS = new Set(["/", "/login", "/register"]);
+/**
+ * Server-side route protection middleware.
+ * Uses the Edge-compatible auth config (no Prisma, bcryptjs, or Node.js modules).
+ * The `authorized` callback in auth.config.ts handles the protection logic:
+ * - Public paths (/, /login, /register) are always accessible
+ * - All other routes require authentication (redirects to /login)
+ * - Admin routes require PLATFORM_ADMIN or INNOVATION_MANAGER role
+ */
+export const { auth: middleware } = NextAuth(authConfig);
 
-const PUBLIC_PREFIXES = ["/api/auth", "/api/health", "/_next", "/favicon.ico"];
-
-function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_PATHS.has(pathname)) return true;
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
-  }
-
-  const isLoggedIn = !!req.auth;
-
-  if (!isLoggedIn) {
-    const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (pathname.startsWith("/admin")) {
-    const role = req.auth?.user?.globalRole;
-    if (role !== "PLATFORM_ADMIN" && role !== "INNOVATION_MANAGER") {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-  }
-
-  return NextResponse.next();
-});
+export default middleware;
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    /*
+     * Match all paths except:
+     * - api routes (handled by their own auth)
+     * - _next (static files)
+     * - favicon, images, etc.
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

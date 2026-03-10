@@ -44,13 +44,21 @@ beforeEach(() => {
 });
 
 describe("checkDatabase", () => {
-  it("returns ok when database is reachable", async () => {
-    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ "?column?": 1 }]);
+  it("returns ok when database has application tables", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(10) }]);
 
     const result = await checkDatabase();
     expect(result.status).toBe("ok");
     expect(result.latency_ms).toBeDefined();
     expect(result.error).toBeUndefined();
+  });
+
+  it("returns error when database has no application tables", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }]);
+
+    const result = await checkDatabase();
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("No application tables found");
   });
 
   it("returns error when database is unreachable", async () => {
@@ -165,7 +173,7 @@ describe("checkS3", () => {
 
 describe("performHealthCheck", () => {
   it("returns ok when all checks pass", async () => {
-    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ "?column?": 1 }]);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(10) }]);
     vi.mocked(isRedisAvailable).mockReturnValue(false);
 
     const result = await performHealthCheck();
@@ -190,7 +198,7 @@ describe("performHealthCheck", () => {
   });
 
   it("returns degraded when optional service is down", async () => {
-    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ "?column?": 1 }]);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(10) }]);
     vi.mocked(isRedisAvailable).mockReturnValue(true);
     vi.mocked(cacheSet).mockRejectedValue(new Error("Redis down"));
 
@@ -201,7 +209,7 @@ describe("performHealthCheck", () => {
   });
 
   it("includes memory and cpu info", async () => {
-    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ "?column?": 1 }]);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(10) }]);
     vi.mocked(isRedisAvailable).mockReturnValue(false);
 
     const result = await performHealthCheck();

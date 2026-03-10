@@ -49,9 +49,27 @@ export interface HealthCheckResult {
 export async function checkDatabase(): Promise<SubCheckResult> {
   try {
     const start = performance.now();
-    await prisma.$queryRaw`SELECT 1`;
+    // Verify connectivity AND that schema tables exist
+    const tableCount = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT count(*)::bigint as count
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        AND table_name != '_prisma_migrations'
+    `;
     const latency_ms = Math.round(performance.now() - start);
-    healthLogger.debug({ latency_ms }, "Database check passed");
+    const count = Number(tableCount[0]?.count ?? 0);
+
+    if (count === 0) {
+      healthLogger.warn({ latency_ms }, "Database connected but no application tables found");
+      return {
+        status: "error",
+        latency_ms,
+        error: "No application tables found — migrations may not have run",
+      };
+    }
+
+    healthLogger.debug({ latency_ms, tableCount: count }, "Database check passed");
     return { status: "ok", latency_ms };
   } catch (e) {
     const error = e instanceof Error ? e.message : "Database connection failed";

@@ -1,6 +1,6 @@
 import { logger } from "./logger";
 
-const REDIS_AVAILABLE = false;
+const REDIS_AVAILABLE = !!process.env.REDIS_URL;
 
 const childLogger = logger.child({ service: "redis" });
 
