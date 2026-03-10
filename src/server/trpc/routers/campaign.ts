@@ -1,0 +1,87 @@
+import { TRPCError } from "@trpc/server";
+import { createTRPCRouter, protectedProcedure, requirePermission } from "../trpc";
+import { Action } from "@/server/lib/permissions";
+import {
+  campaignCreateInput,
+  campaignUpdateInput,
+  campaignListInput,
+  campaignGetByIdInput,
+  campaignTransitionInput,
+  listCampaigns,
+  getCampaignById,
+  createCampaign,
+  updateCampaign,
+  transitionCampaign,
+  CampaignServiceError,
+} from "@/server/services/campaign.service";
+
+function handleCampaignError(error: unknown): never {
+  if (error instanceof TRPCError) throw error;
+
+  if (error instanceof CampaignServiceError) {
+    const codeMap: Record<string, "NOT_FOUND" | "BAD_REQUEST" | "FORBIDDEN"> = {
+      CAMPAIGN_NOT_FOUND: "NOT_FOUND",
+      INVALID_TRANSITION: "BAD_REQUEST",
+    };
+
+    throw new TRPCError({
+      code: codeMap[error.code] ?? "BAD_REQUEST",
+      message: error.message,
+    });
+  }
+
+  throw error;
+}
+
+export const campaignRouter = createTRPCRouter({
+  list: protectedProcedure
+    .use(requirePermission(Action.CAMPAIGN_READ))
+    .input(campaignListInput)
+    .query(async ({ input }) => {
+      return listCampaigns(input);
+    }),
+
+  getById: protectedProcedure
+    .use(requirePermission<{ id: string }>(Action.CAMPAIGN_READ, (input) => input.id))
+    .input(campaignGetByIdInput)
+    .query(async ({ input }) => {
+      try {
+        return await getCampaignById(input.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  create: protectedProcedure
+    .use(requirePermission(Action.CAMPAIGN_CREATE))
+    .input(campaignCreateInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createCampaign(input, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  update: protectedProcedure
+    .use(requirePermission<{ id: string }>(Action.CAMPAIGN_UPDATE, (input) => input.id))
+    .input(campaignUpdateInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await updateCampaign(input, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  transition: protectedProcedure
+    .use(requirePermission<{ id: string }>(Action.CAMPAIGN_TRANSITION, (input) => input.id))
+    .input(campaignTransitionInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await transitionCampaign(input.id, input.targetStatus, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+});

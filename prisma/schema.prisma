@@ -45,6 +45,7 @@ model User {
   sessions            Session[]
   userGroupMembership UserGroupMembership[]
   orgUnitAssignments  UserOrgUnit[]
+  createdCampaigns    Campaign[] @relation("CampaignCreatedBy")
 
   @@map("users")
 }
@@ -173,4 +174,99 @@ model UserGroupMembership {
 
   @@unique([userId, groupId])
   @@map("user_group_memberships")
+}
+
+// ── Campaign Models ──────────────────────────────────────────
+
+enum CampaignStatus {
+  DRAFT
+  SEEDING
+  SUBMISSION
+  DISCUSSION_VOTING
+  EVALUATION
+  CLOSED
+
+  @@map("campaign_status")
+}
+
+enum SubmissionType {
+  CALL_FOR_IDEAS
+  CALL_FOR_PROPOSALS
+  CALL_FOR_GENERIC
+
+  @@map("submission_type")
+}
+
+enum SetupType {
+  SIMPLE
+  ADVANCED
+
+  @@map("setup_type")
+}
+
+enum AudienceType {
+  ALL_INTERNAL
+  SELECTED_INTERNAL
+  ALL_EXTERNAL
+  SELECTED_EXTERNAL
+  MIXED
+
+  @@map("audience_type")
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  title           String
+  teaser          String?
+  description     String?        @db.Text
+  bannerUrl       String?        @map("banner_url")
+  videoUrl        String?        @map("video_url")
+  status          CampaignStatus @default(DRAFT)
+  previousStatus  CampaignStatus? @map("previous_status")
+  submissionType  SubmissionType @default(CALL_FOR_IDEAS) @map("submission_type")
+  setupType       SetupType      @default(SIMPLE) @map("setup_type")
+  audienceType    AudienceType   @default(ALL_INTERNAL) @map("audience_type")
+
+  // Timeline
+  submissionCloseDate DateTime?  @map("submission_close_date")
+  votingCloseDate     DateTime?  @map("voting_close_date")
+  plannedCloseDate    DateTime?  @map("planned_close_date")
+  launchedAt          DateTime?  @map("launched_at")
+  closedAt            DateTime?  @map("closed_at")
+
+  // Feature toggles
+  hasSeedingPhase        Boolean @default(true)  @map("has_seeding_phase")
+  hasDiscussionPhase     Boolean @default(true)  @map("has_discussion_phase")
+  hasCommunityGraduation Boolean @default(true)  @map("has_community_graduation")
+  hasVoting              Boolean @default(false) @map("has_voting")
+  hasLikes               Boolean @default(true)  @map("has_likes")
+  isConfidentialAllowed  Boolean @default(false) @map("is_confidential_allowed")
+  isFeatured             Boolean @default(false) @map("is_featured")
+  isShowOnStartPage      Boolean @default(true)  @map("is_show_on_start_page")
+
+  // Community graduation thresholds
+  graduationVisitors     Int   @default(10) @map("graduation_visitors")
+  graduationCommenters   Int   @default(5)  @map("graduation_commenters")
+  graduationLikes        Int   @default(0)  @map("graduation_likes")
+  graduationVoters       Int   @default(0)  @map("graduation_voters")
+  graduationVotingLevel  Float @default(0)  @map("graduation_voting_level")
+  graduationDaysInStatus Int   @default(0)  @map("graduation_days_in_status")
+
+  // Settings stored as JSON
+  votingCriteria  Json?  @map("voting_criteria")
+  customFields    Json?  @map("custom_fields")
+  settings        Json?
+
+  // References
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy User @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+
+  @@index([status])
+  @@index([submissionType])
+  @@index([createdById])
+  @@map("campaigns")
 }
