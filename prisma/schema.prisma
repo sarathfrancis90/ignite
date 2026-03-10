@@ -44,6 +44,7 @@ model User {
   accounts            Account[]
   sessions            Session[]
   userGroupMembership UserGroupMembership[]
+  orgUnitAssignments  UserOrgUnit[]
 
   @@map("users")
 }
@@ -128,8 +129,24 @@ model OrgUnit {
 
   parent   OrgUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
   children OrgUnit[] @relation("OrgUnitHierarchy")
+  userAssignments UserOrgUnit[]
 
   @@map("org_units")
+}
+
+model UserOrgUnit {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  orgUnitId String   @map("org_unit_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgUnit OrgUnit @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgUnitId])
+  @@index([userId])
+  @@index([orgUnitId])
+  @@map("user_org_units")
 }
 
 model UserGroup {

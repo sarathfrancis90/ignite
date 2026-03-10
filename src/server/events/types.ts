@@ -21,6 +21,11 @@ export interface EventMap {
   "rbac.roleAssigned": EventPayload;
   "rbac.roleRemoved": EventPayload;
   "rbac.globalRoleChanged": EventPayload;
+  "orgUnit.created": EventPayload;
+  "orgUnit.updated": EventPayload;
+  "orgUnit.deleted": EventPayload;
+  "orgUnit.userAssigned": EventPayload;
+  "orgUnit.userRemoved": EventPayload;
 }
 
 export type EventName = keyof EventMap;
