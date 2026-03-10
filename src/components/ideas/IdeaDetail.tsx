@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { IdeaDiscussion } from "@/components/ideas/IdeaDiscussion";
 import {
   Dialog,
   DialogContent,
@@ -254,6 +255,8 @@ export function IdeaDetail({ ideaId }: IdeaDetailProps) {
         <MetricCard label="Confidential" value={idea.isConfidential ? "Yes" : "No"} />
         <MetricCard label="Invention Disclosure" value={idea.inventionDisclosure ? "Yes" : "No"} />
       </div>
+
+      <IdeaDiscussion ideaId={idea.id} />
 
       {(submitMutation.error ?? deleteMutation.error) && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">

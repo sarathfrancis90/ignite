@@ -26,6 +26,12 @@ export interface EventMap {
   "idea.coachRejected": EventPayload;
   "idea.coachRequestedChanges": EventPayload;
   "idea.voted": EventPayload;
+  "comment.created": EventPayload;
+  "comment.updated": EventPayload;
+  "comment.deleted": EventPayload;
+  "comment.flagged": EventPayload;
+  "comment.unflagged": EventPayload;
+  "comment.mentioned": EventPayload;
   "user.registered": EventPayload;
   "user.profileUpdated": EventPayload;
   "evaluation.completed": EventPayload;

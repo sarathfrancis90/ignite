@@ -52,6 +52,8 @@ model User {
   spaceMemberships    InnovationSpaceMembership[]
   contributedIdeas    Idea[]                      @relation("IdeaContributor")
   coAuthoredIdeas     IdeaCoAuthor[]
+  comments            Comment[]                   @relation("CommentAuthor")
+  commentMentions     CommentMention[]             @relation("CommentMentioned")
   orgManagerAssignments OrganizationManager[]
   linkedContacts        Contact[]
 
@@ -516,6 +518,7 @@ model Idea {
 
   // Relations
   coAuthors IdeaCoAuthor[]
+  comments  Comment[]
 
   @@index([campaignId])
   @@index([contributorId])
@@ -537,6 +540,46 @@ model IdeaCoAuthor {
   @@index([ideaId])
   @@index([userId])
   @@map("idea_co_authors")
+}
+
+// ── Comment Models ─────────────────────────────────────────
+
+model Comment {
+  id       String  @id @default(cuid())
+  content  String  @db.Text
+  ideaId   String  @map("idea_id")
+  authorId String  @map("author_id")
+  parentId String? @map("parent_id")
+  flagged  Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  idea     Idea      @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  author   User      @relation("CommentAuthor", fields: [authorId], references: [id])
+  parent   Comment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentThread")
+  mentions CommentMention[]
+
+  @@index([ideaId])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([ideaId, createdAt])
+  @@map("comments")
+}
+
+model CommentMention {
+  id              String @id @default(cuid())
+  commentId       String @map("comment_id")
+  mentionedUserId String @map("mentioned_user_id")
+
+  comment       Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  mentionedUser User    @relation("CommentMentioned", fields: [mentionedUserId], references: [id])
+
+  @@unique([commentId, mentionedUserId])
+  @@index([commentId])
+  @@index([mentionedUserId])
+  @@map("comment_mentions")
 }
 
 // ── Partner / Organization Models ────────────────────────────
