@@ -1,7 +1,12 @@
 import { prisma } from "@/server/lib/prisma";
 import { logger } from "@/server/lib/logger";
 import { eventBus } from "@/server/events/event-bus";
-import { isValidTransition } from "@/server/lib/state-machines/campaign-transitions";
+import {
+  isValidTransition,
+  getValidTransitions,
+  CAMPAIGN_STATUS_LABELS,
+} from "@/server/lib/state-machines/campaign-transitions";
+import { evaluateTransitionGuards } from "@/server/lib/state-machines/transition-engine";
 import type { CampaignStatus, Prisma } from "@prisma/client";
 import type {
   CampaignCreateInput,
@@ -15,6 +20,8 @@ export {
   campaignListInput,
   campaignGetByIdInput,
   campaignTransitionInput,
+  campaignGetTransitionsInput,
+  campaignRevertInput,
 } from "./campaign.schemas";
 
 export type {
@@ -265,6 +272,56 @@ export async function updateCampaign(input: CampaignUpdateInput, updatedById: st
 }
 
 /**
+ * Get valid transitions for a campaign, including guard status for each.
+ */
+export async function getCampaignTransitions(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      id: true,
+      status: true,
+      previousStatus: true,
+      hasSeedingPhase: true,
+      hasDiscussionPhase: true,
+    },
+  });
+
+  if (!campaign) {
+    throw new CampaignServiceError("Campaign not found", "CAMPAIGN_NOT_FOUND");
+  }
+
+  const toggles = {
+    hasSeedingPhase: campaign.hasSeedingPhase,
+    hasDiscussionPhase: campaign.hasDiscussionPhase,
+  };
+
+  const validTargets = getValidTransitions(campaign.status, toggles);
+
+  const transitions = await Promise.all(
+    validTargets.map(async (target) => {
+      const guardFailures = await evaluateTransitionGuards(campaign.id, campaign.status, target);
+      return {
+        targetStatus: target,
+        label: CAMPAIGN_STATUS_LABELS[target],
+        guardsPass: guardFailures.length === 0,
+        guardFailures: guardFailures.map((f) => ({
+          guard: f.guard,
+          message: f.message,
+        })),
+      };
+    }),
+  );
+
+  return {
+    currentStatus: campaign.status,
+    currentLabel: CAMPAIGN_STATUS_LABELS[campaign.status],
+    previousStatus: campaign.previousStatus,
+    canRevert: campaign.previousStatus !== null,
+    transitions,
+  };
+}
+
+/**
  * Transition a campaign to a new status using the state machine.
  * Status changes ONLY happen through this function.
  */
@@ -297,6 +354,13 @@ export async function transitionCampaign(
       `Cannot transition from ${campaign.status} to ${targetStatus}`,
       "INVALID_TRANSITION",
     );
+  }
+
+  // Evaluate guards
+  const guardFailures = await evaluateTransitionGuards(campaignId, campaign.status, targetStatus);
+  if (guardFailures.length > 0) {
+    const messages = guardFailures.map((f) => f.message).join("; ");
+    throw new CampaignServiceError(`Transition blocked: ${messages}`, "GUARD_FAILED");
   }
 
   const now = new Date();
@@ -337,6 +401,72 @@ export async function transitionCampaign(
   childLogger.info(
     { campaignId, from: campaign.status, to: targetStatus },
     "Campaign phase transitioned",
+  );
+
+  return {
+    ...updated,
+    submissionCloseDate: updated.submissionCloseDate?.toISOString() ?? null,
+    votingCloseDate: updated.votingCloseDate?.toISOString() ?? null,
+    plannedCloseDate: updated.plannedCloseDate?.toISOString() ?? null,
+    launchedAt: updated.launchedAt?.toISOString() ?? null,
+    closedAt: updated.closedAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
+    updatedAt: updated.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Revert a campaign to its previous status (fast-track backward).
+ * Only allowed when previousStatus is set.
+ */
+export async function revertCampaignPhase(campaignId: string, actor: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      id: true,
+      status: true,
+      previousStatus: true,
+    },
+  });
+
+  if (!campaign) {
+    throw new CampaignServiceError("Campaign not found", "CAMPAIGN_NOT_FOUND");
+  }
+
+  if (!campaign.previousStatus) {
+    throw new CampaignServiceError("No previous status to revert to", "NO_PREVIOUS_STATUS");
+  }
+
+  const now = new Date();
+
+  const updated = await prisma.campaign.update({
+    where: { id: campaignId },
+    data: {
+      previousStatus: campaign.status,
+      status: campaign.previousStatus,
+    },
+    include: {
+      createdBy: {
+        select: { id: true, name: true, email: true, image: true },
+      },
+    },
+  });
+
+  eventBus.emit("campaign.phaseChanged", {
+    entity: "campaign",
+    entityId: campaignId,
+    actor,
+    timestamp: now.toISOString(),
+    metadata: {
+      previousStatus: campaign.status,
+      newStatus: campaign.previousStatus,
+      isRevert: true,
+    },
+  });
+
+  childLogger.info(
+    { campaignId, from: campaign.status, to: campaign.previousStatus },
+    "Campaign phase reverted",
   );
 
   return {

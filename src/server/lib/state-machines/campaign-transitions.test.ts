@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   getValidTransitions,
   isValidTransition,
+  getTransitionGuards,
   CAMPAIGN_STATUS_LABELS,
+  CAMPAIGN_PHASE_ORDER,
+  GUARD_FAILURE_MESSAGES,
 } from "./campaign-transitions";
 
 describe("campaign-transitions", () => {
@@ -85,6 +88,34 @@ describe("campaign-transitions", () => {
     });
   });
 
+  describe("getTransitionGuards", () => {
+    it("returns SEEDING_TEAM_ASSIGNED for DRAFT -> SEEDING", () => {
+      const guards = getTransitionGuards("DRAFT", "SEEDING");
+      expect(guards).toEqual(["SEEDING_TEAM_ASSIGNED"]);
+    });
+
+    it("returns HAS_AT_LEAST_ONE_IDEA for SUBMISSION -> DISCUSSION_VOTING", () => {
+      const guards = getTransitionGuards("SUBMISSION", "DISCUSSION_VOTING");
+      expect(guards).toEqual(["HAS_AT_LEAST_ONE_IDEA"]);
+    });
+
+    it("returns HAS_AT_LEAST_ONE_IDEA for SUBMISSION -> EVALUATION", () => {
+      const guards = getTransitionGuards("SUBMISSION", "EVALUATION");
+      expect(guards).toEqual(["HAS_AT_LEAST_ONE_IDEA"]);
+    });
+
+    it("returns ALL_EVALUATIONS_COMPLETE for EVALUATION -> CLOSED", () => {
+      const guards = getTransitionGuards("EVALUATION", "CLOSED");
+      expect(guards).toEqual(["ALL_EVALUATIONS_COMPLETE"]);
+    });
+
+    it("returns empty array for transitions without guards", () => {
+      expect(getTransitionGuards("DRAFT", "SUBMISSION")).toEqual([]);
+      expect(getTransitionGuards("SEEDING", "SUBMISSION")).toEqual([]);
+      expect(getTransitionGuards("DISCUSSION_VOTING", "EVALUATION")).toEqual([]);
+    });
+  });
+
   describe("CAMPAIGN_STATUS_LABELS", () => {
     it("has labels for all statuses", () => {
       expect(CAMPAIGN_STATUS_LABELS.DRAFT).toBe("Draft");
@@ -93,6 +124,27 @@ describe("campaign-transitions", () => {
       expect(CAMPAIGN_STATUS_LABELS.DISCUSSION_VOTING).toBe("Discussion & Voting");
       expect(CAMPAIGN_STATUS_LABELS.EVALUATION).toBe("Evaluation");
       expect(CAMPAIGN_STATUS_LABELS.CLOSED).toBe("Closed");
+    });
+  });
+
+  describe("CAMPAIGN_PHASE_ORDER", () => {
+    it("contains all 6 phases in order", () => {
+      expect(CAMPAIGN_PHASE_ORDER).toEqual([
+        "DRAFT",
+        "SEEDING",
+        "SUBMISSION",
+        "DISCUSSION_VOTING",
+        "EVALUATION",
+        "CLOSED",
+      ]);
+    });
+  });
+
+  describe("GUARD_FAILURE_MESSAGES", () => {
+    it("has messages for all guard IDs", () => {
+      expect(GUARD_FAILURE_MESSAGES.SEEDING_TEAM_ASSIGNED).toBeDefined();
+      expect(GUARD_FAILURE_MESSAGES.HAS_AT_LEAST_ONE_IDEA).toBeDefined();
+      expect(GUARD_FAILURE_MESSAGES.ALL_EVALUATIONS_COMPLETE).toBeDefined();
     });
   });
 });

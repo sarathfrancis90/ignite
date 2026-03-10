@@ -4,6 +4,8 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import { Lightbulb, BarChart3, Settings, LayoutDashboard, MessageSquare } from "lucide-react";
 import { CampaignHeader } from "@/components/campaigns/CampaignHeader";
+import { CampaignLifecycleBar } from "@/components/campaigns/CampaignLifecycleBar";
+import { CampaignPhaseControls } from "@/components/campaigns/CampaignPhaseControls";
 import { trpc } from "@/lib/trpc";
 
 const TABS = [
@@ -78,6 +80,24 @@ export default function CampaignDetailPage() {
       <div>
         {activeTab === "overview" && (
           <div className="space-y-6">
+            <div className="rounded-xl border border-gray-200 bg-white p-6">
+              <h2 className="mb-4 font-display text-sm font-semibold text-gray-900">
+                Campaign Lifecycle
+              </h2>
+              <CampaignLifecycleBar
+                currentStatus={campaign.status}
+                hasSeedingPhase={campaign.hasSeedingPhase}
+                hasDiscussionPhase={campaign.hasDiscussionPhase}
+              />
+              <div className="mt-4">
+                <CampaignPhaseControls
+                  campaignId={campaign.id}
+                  currentStatus={campaign.status}
+                  onTransitionComplete={() => void campaignQuery.refetch()}
+                />
+              </div>
+            </div>
+
             <div className="rounded-xl border border-gray-200 bg-white p-6">
               <h2 className="mb-4 font-display text-lg font-semibold text-gray-900">
                 Campaign Description

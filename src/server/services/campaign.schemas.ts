@@ -74,6 +74,14 @@ export const campaignTransitionInput = z.object({
   ]),
 });
 
+export const campaignGetTransitionsInput = z.object({
+  id: z.string().cuid(),
+});
+
+export const campaignRevertInput = z.object({
+  id: z.string().cuid(),
+});
+
 export type CampaignCreateInput = z.infer<typeof campaignCreateInput>;
 export type CampaignUpdateInput = z.infer<typeof campaignUpdateInput>;
 export type CampaignListInput = z.infer<typeof campaignListInput>;

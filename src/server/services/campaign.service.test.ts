@@ -5,6 +5,8 @@ import {
   createCampaign,
   updateCampaign,
   transitionCampaign,
+  getCampaignTransitions,
+  revertCampaignPhase,
   CampaignServiceError,
   campaignCreateInput,
   campaignListInput,
@@ -17,6 +19,9 @@ vi.mock("@/server/lib/prisma", () => ({
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+    },
+    campaignMember: {
+      count: vi.fn(),
     },
   },
 }));
@@ -42,13 +47,19 @@ vi.mock("@/server/events/event-bus", () => ({
   },
 }));
 
+vi.mock("@/server/lib/state-machines/transition-engine", () => ({
+  evaluateTransitionGuards: vi.fn().mockResolvedValue([]),
+}));
+
 const { prisma } = await import("@/server/lib/prisma");
 const { eventBus } = await import("@/server/events/event-bus");
+const { evaluateTransitionGuards } = await import("@/server/lib/state-machines/transition-engine");
 
 const campaignFindUnique = prisma.campaign.findUnique as unknown as Mock;
 const campaignFindMany = prisma.campaign.findMany as unknown as Mock;
 const campaignCreate = prisma.campaign.create as unknown as Mock;
 const campaignUpdate = prisma.campaign.update as unknown as Mock;
+const mockEvaluateGuards = evaluateTransitionGuards as unknown as Mock;
 
 const mockCreatedBy = {
   id: "user-1",
@@ -103,6 +114,7 @@ const mockCampaign = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockEvaluateGuards.mockResolvedValue([]);
 });
 
 describe("campaign.service", () => {
@@ -298,6 +310,22 @@ describe("campaign.service", () => {
       );
     });
 
+    it("throws GUARD_FAILED when guards fail", async () => {
+      campaignFindUnique.mockResolvedValue({
+        id: "campaign-1",
+        status: "DRAFT",
+        hasSeedingPhase: true,
+        hasDiscussionPhase: true,
+      });
+      mockEvaluateGuards.mockResolvedValue([
+        { guard: "SEEDING_TEAM_ASSIGNED", message: "Seeding team required" },
+      ]);
+
+      await expect(transitionCampaign("campaign-1", "SEEDING", "user-1")).rejects.toThrow(
+        "Transition blocked",
+      );
+    });
+
     it("emits campaign.phaseChanged event", async () => {
       campaignFindUnique.mockResolvedValue({
         id: "campaign-1",
@@ -371,6 +399,118 @@ describe("campaign.service", () => {
             closedAt: expect.any(Date),
           }),
         }),
+      );
+    });
+  });
+
+  describe("getCampaignTransitions", () => {
+    it("returns valid transitions with guard status", async () => {
+      campaignFindUnique.mockResolvedValue({
+        id: "campaign-1",
+        status: "DRAFT",
+        previousStatus: null,
+        hasSeedingPhase: true,
+        hasDiscussionPhase: true,
+      });
+
+      const result = await getCampaignTransitions("campaign-1");
+
+      expect(result.currentStatus).toBe("DRAFT");
+      expect(result.currentLabel).toBe("Draft");
+      expect(result.canRevert).toBe(false);
+      expect(result.transitions).toHaveLength(2);
+      expect(result.transitions[0]?.targetStatus).toBe("SEEDING");
+      expect(result.transitions[1]?.targetStatus).toBe("SUBMISSION");
+    });
+
+    it("indicates canRevert when previousStatus exists", async () => {
+      campaignFindUnique.mockResolvedValue({
+        id: "campaign-1",
+        status: "SUBMISSION",
+        previousStatus: "DRAFT",
+        hasSeedingPhase: true,
+        hasDiscussionPhase: true,
+      });
+
+      const result = await getCampaignTransitions("campaign-1");
+
+      expect(result.canRevert).toBe(true);
+      expect(result.previousStatus).toBe("DRAFT");
+    });
+
+    it("throws CAMPAIGN_NOT_FOUND when campaign does not exist", async () => {
+      campaignFindUnique.mockResolvedValue(null);
+
+      await expect(getCampaignTransitions("nonexistent")).rejects.toThrow("Campaign not found");
+    });
+  });
+
+  describe("revertCampaignPhase", () => {
+    it("reverts to previous status", async () => {
+      campaignFindUnique.mockResolvedValue({
+        id: "campaign-1",
+        status: "SUBMISSION",
+        previousStatus: "DRAFT",
+      });
+      campaignUpdate.mockResolvedValue({
+        ...mockCampaign,
+        status: "DRAFT",
+        previousStatus: "SUBMISSION",
+      });
+
+      await revertCampaignPhase("campaign-1", "user-1");
+
+      expect(campaignUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "DRAFT",
+            previousStatus: "SUBMISSION",
+          }),
+        }),
+      );
+    });
+
+    it("emits campaign.phaseChanged event with isRevert metadata", async () => {
+      campaignFindUnique.mockResolvedValue({
+        id: "campaign-1",
+        status: "SUBMISSION",
+        previousStatus: "DRAFT",
+      });
+      campaignUpdate.mockResolvedValue({
+        ...mockCampaign,
+        status: "DRAFT",
+        previousStatus: "SUBMISSION",
+      });
+
+      await revertCampaignPhase("campaign-1", "user-1");
+
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        "campaign.phaseChanged",
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            isRevert: true,
+          }),
+        }),
+      );
+    });
+
+    it("throws NO_PREVIOUS_STATUS when no previous status", async () => {
+      campaignFindUnique.mockResolvedValue({
+        id: "campaign-1",
+        status: "DRAFT",
+        previousStatus: null,
+      });
+
+      await expect(revertCampaignPhase("campaign-1", "user-1")).rejects.toThrow(
+        "No previous status to revert to",
+      );
+    });
+
+    it("throws CAMPAIGN_NOT_FOUND when campaign does not exist", async () => {
+      campaignFindUnique.mockResolvedValue(null);
+
+      await expect(revertCampaignPhase("nonexistent", "user-1")).rejects.toThrow(
+        "Campaign not found",
       );
     });
   });

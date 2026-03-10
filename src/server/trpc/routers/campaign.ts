@@ -7,11 +7,15 @@ import {
   campaignListInput,
   campaignGetByIdInput,
   campaignTransitionInput,
+  campaignGetTransitionsInput,
+  campaignRevertInput,
   listCampaigns,
   getCampaignById,
   createCampaign,
   updateCampaign,
   transitionCampaign,
+  getCampaignTransitions,
+  revertCampaignPhase,
   CampaignServiceError,
 } from "@/server/services/campaign.service";
 import {
@@ -30,6 +34,8 @@ function handleCampaignError(error: unknown): never {
     const codeMap: Record<string, "NOT_FOUND" | "BAD_REQUEST" | "FORBIDDEN"> = {
       CAMPAIGN_NOT_FOUND: "NOT_FOUND",
       INVALID_TRANSITION: "BAD_REQUEST",
+      GUARD_FAILED: "BAD_REQUEST",
+      NO_PREVIOUS_STATUS: "BAD_REQUEST",
     };
 
     throw new TRPCError({
@@ -82,12 +88,34 @@ export const campaignRouter = createTRPCRouter({
       }
     }),
 
+  getTransitions: protectedProcedure
+    .use(requirePermission<{ id: string }>(Action.CAMPAIGN_READ, (input) => input.id))
+    .input(campaignGetTransitionsInput)
+    .query(async ({ input }) => {
+      try {
+        return await getCampaignTransitions(input.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
   transition: protectedProcedure
     .use(requirePermission<{ id: string }>(Action.CAMPAIGN_TRANSITION, (input) => input.id))
     .input(campaignTransitionInput)
     .mutation(async ({ ctx, input }) => {
       try {
         return await transitionCampaign(input.id, input.targetStatus, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  revert: protectedProcedure
+    .use(requirePermission<{ id: string }>(Action.CAMPAIGN_TRANSITION, (input) => input.id))
+    .input(campaignRevertInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await revertCampaignPhase(input.id, ctx.session.user.id);
       } catch (error) {
         handleCampaignError(error);
       }
