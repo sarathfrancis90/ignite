@@ -27,26 +27,28 @@ enum NotificationFrequency {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime? @map("email_verified")
-  name          String?
-  image         String?
-  password      String?
-  globalRole    GlobalRole @default(MEMBER) @map("global_role")
-  isActive      Boolean   @default(true) @map("is_active")
-  bio           String?   @db.Text
-  skills        String[]  @default([])
+  id                    String                @id @default(cuid())
+  email                 String                @unique
+  emailVerified         DateTime?             @map("email_verified")
+  name                  String?
+  image                 String?
+  password              String?
+  globalRole            GlobalRole            @default(MEMBER) @map("global_role")
+  isActive              Boolean               @default(true) @map("is_active")
+  bio                   String?               @db.Text
+  skills                String[]              @default([])
   notificationFrequency NotificationFrequency @default(IMMEDIATE) @map("notification_frequency")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
 
   accounts            Account[]
   sessions            Session[]
   userGroupMembership UserGroupMembership[]
   orgUnitAssignments  UserOrgUnit[]
-  createdCampaigns    Campaign[] @relation("CampaignCreatedBy")
+  createdCampaigns    Campaign[]                  @relation("CampaignCreatedBy")
   campaignMemberships CampaignMember[]
+  createdChannels     Channel[]                   @relation("ChannelCreatedBy")
+  channelMemberships  ChannelMember[]
   spaceMemberships    InnovationSpaceMembership[]
 
   @@map("users")
@@ -115,13 +117,13 @@ enum CoachAssignmentMode {
 }
 
 model ResourceRole {
-  id          String           @id @default(cuid())
-  userId      String           @map("user_id")
-  resourceId  String           @map("resource_id")
-  resourceType String          @map("resource_type") // "campaign" or "channel"
-  role        ResourceRoleType
-  assignedAt  DateTime         @default(now()) @map("assigned_at")
-  assignedBy  String?          @map("assigned_by")
+  id           String           @id @default(cuid())
+  userId       String           @map("user_id")
+  resourceId   String           @map("resource_id")
+  resourceType String           @map("resource_type") // "campaign" or "channel"
+  role         ResourceRoleType
+  assignedAt   DateTime         @default(now()) @map("assigned_at")
+  assignedBy   String?          @map("assigned_by")
 
   @@unique([userId, resourceId, role])
   @@index([userId])
@@ -132,25 +134,25 @@ model ResourceRole {
 // ── Organizational Models ─────────────────────────────────────
 
 model OrgUnit {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  parentId    String?   @map("parent_id")
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  parentId    String?  @map("parent_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  parent   OrgUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
-  children OrgUnit[] @relation("OrgUnitHierarchy")
+  parent          OrgUnit?      @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children        OrgUnit[]     @relation("OrgUnitHierarchy")
   userAssignments UserOrgUnit[]
 
   @@map("org_units")
 }
 
 model UserOrgUnit {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  orgUnitId String   @map("org_unit_id")
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  orgUnitId  String   @map("org_unit_id")
   assignedAt DateTime @default(now()) @map("assigned_at")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -163,10 +165,10 @@ model UserOrgUnit {
 }
 
 model UserGroup {
-  id          String  @id @default(cuid())
-  name        String  @unique
+  id          String   @id @default(cuid())
+  name        String   @unique
   description String?
-  isActive    Boolean @default(true) @map("is_active")
+  isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -176,10 +178,10 @@ model UserGroup {
 }
 
 model UserGroupMembership {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  groupId   String   @map("group_id")
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  id       String   @id @default(cuid())
+  userId   String   @map("user_id")
+  groupId  String   @map("group_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
 
   user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   group UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -224,11 +226,11 @@ model InnovationSpace {
 }
 
 model InnovationSpaceMembership {
-  id        String    @id @default(cuid())
-  spaceId   String    @map("space_id")
-  userId    String    @map("user_id")
-  role      SpaceRole @default(SPACE_MEMBER)
-  joinedAt  DateTime  @default(now()) @map("joined_at")
+  id       String    @id @default(cuid())
+  spaceId  String    @map("space_id")
+  userId   String    @map("user_id")
+  role     SpaceRole @default(SPACE_MEMBER)
+  joinedAt DateTime  @default(now()) @map("joined_at")
 
   space InnovationSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -278,53 +280,53 @@ enum AudienceType {
 }
 
 model Campaign {
-  id              String         @id @default(cuid())
-  title           String
-  teaser          String?
-  description     String?        @db.Text
-  bannerUrl       String?        @map("banner_url")
-  videoUrl        String?        @map("video_url")
-  status          CampaignStatus @default(DRAFT)
-  previousStatus  CampaignStatus? @map("previous_status")
-  submissionType  SubmissionType @default(CALL_FOR_IDEAS) @map("submission_type")
-  setupType       SetupType      @default(SIMPLE) @map("setup_type")
-  audienceType    AudienceType   @default(ALL_INTERNAL) @map("audience_type")
+  id             String          @id @default(cuid())
+  title          String
+  teaser         String?
+  description    String?         @db.Text
+  bannerUrl      String?         @map("banner_url")
+  videoUrl       String?         @map("video_url")
+  status         CampaignStatus  @default(DRAFT)
+  previousStatus CampaignStatus? @map("previous_status")
+  submissionType SubmissionType  @default(CALL_FOR_IDEAS) @map("submission_type")
+  setupType      SetupType       @default(SIMPLE) @map("setup_type")
+  audienceType   AudienceType    @default(ALL_INTERNAL) @map("audience_type")
 
   // Timeline
-  submissionCloseDate DateTime?  @map("submission_close_date")
-  votingCloseDate     DateTime?  @map("voting_close_date")
-  plannedCloseDate    DateTime?  @map("planned_close_date")
-  launchedAt          DateTime?  @map("launched_at")
-  closedAt            DateTime?  @map("closed_at")
+  submissionCloseDate DateTime? @map("submission_close_date")
+  votingCloseDate     DateTime? @map("voting_close_date")
+  plannedCloseDate    DateTime? @map("planned_close_date")
+  launchedAt          DateTime? @map("launched_at")
+  closedAt            DateTime? @map("closed_at")
 
   // Feature toggles
-  hasSeedingPhase        Boolean @default(true)  @map("has_seeding_phase")
-  hasDiscussionPhase     Boolean @default(true)  @map("has_discussion_phase")
-  hasCommunityGraduation Boolean @default(true)  @map("has_community_graduation")
+  hasSeedingPhase        Boolean @default(true) @map("has_seeding_phase")
+  hasDiscussionPhase     Boolean @default(true) @map("has_discussion_phase")
+  hasCommunityGraduation Boolean @default(true) @map("has_community_graduation")
   hasQualificationPhase  Boolean @default(false) @map("has_qualification_phase")
   hasVoting              Boolean @default(false) @map("has_voting")
-  hasLikes               Boolean @default(true)  @map("has_likes")
+  hasLikes               Boolean @default(true) @map("has_likes")
   hasIdeaCoach           Boolean @default(false) @map("has_idea_coach")
   isConfidentialAllowed  Boolean @default(false) @map("is_confidential_allowed")
   isFeatured             Boolean @default(false) @map("is_featured")
-  isShowOnStartPage      Boolean @default(true)  @map("is_show_on_start_page")
+  isShowOnStartPage      Boolean @default(true) @map("is_show_on_start_page")
 
   // Idea Coach settings
-  coachAssignmentMode    CoachAssignmentMode @default(GLOBAL) @map("coach_assignment_mode")
-  ideaCategories         Json?               @map("idea_categories")
+  coachAssignmentMode CoachAssignmentMode @default(GLOBAL) @map("coach_assignment_mode")
+  ideaCategories      Json?               @map("idea_categories")
 
   // Community graduation thresholds
   graduationVisitors     Int   @default(10) @map("graduation_visitors")
-  graduationCommenters   Int   @default(5)  @map("graduation_commenters")
-  graduationLikes        Int   @default(0)  @map("graduation_likes")
-  graduationVoters       Int   @default(0)  @map("graduation_voters")
-  graduationVotingLevel  Float @default(0)  @map("graduation_voting_level")
-  graduationDaysInStatus Int   @default(0)  @map("graduation_days_in_status")
+  graduationCommenters   Int   @default(5) @map("graduation_commenters")
+  graduationLikes        Int   @default(0) @map("graduation_likes")
+  graduationVoters       Int   @default(0) @map("graduation_voters")
+  graduationVotingLevel  Float @default(0) @map("graduation_voting_level")
+  graduationDaysInStatus Int   @default(0) @map("graduation_days_in_status")
 
   // Settings stored as JSON
-  votingCriteria  Json?  @map("voting_criteria")
-  customFields    Json?  @map("custom_fields")
-  settings        Json?
+  votingCriteria Json? @map("voting_criteria")
+  customFields   Json? @map("custom_fields")
+  settings       Json?
 
   // References
   createdById String   @map("created_by_id")
@@ -332,7 +334,7 @@ model Campaign {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  createdBy    User @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  createdBy    User                  @relation("CampaignCreatedBy", fields: [createdById], references: [id])
   members      CampaignMember[]
   kpiSnapshots CampaignKpiSnapshot[]
 
@@ -343,13 +345,13 @@ model Campaign {
 }
 
 model CampaignMember {
-  id          String           @id @default(cuid())
-  campaignId  String           @map("campaign_id")
-  userId      String           @map("user_id")
-  role        ResourceRoleType
-  category    String?
-  assignedAt  DateTime         @default(now()) @map("assigned_at")
-  assignedBy  String?          @map("assigned_by")
+  id         String           @id @default(cuid())
+  campaignId String           @map("campaign_id")
+  userId     String           @map("user_id")
+  role       ResourceRoleType
+  category   String?
+  assignedAt DateTime         @default(now()) @map("assigned_at")
+  assignedBy String?          @map("assigned_by")
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -363,28 +365,28 @@ model CampaignMember {
 // ── KPI Snapshot Models ─────────────────────────────────────
 
 model CampaignKpiSnapshot {
-  id                String   @id @default(cuid())
-  campaignId        String   @map("campaign_id")
-  snapshotDate      DateTime @map("snapshot_date")
+  id           String   @id @default(cuid())
+  campaignId   String   @map("campaign_id")
+  snapshotDate DateTime @map("snapshot_date")
 
   // Engagement metrics
-  totalViews        Int      @default(0) @map("total_views")
-  uniqueVisitors    Int      @default(0) @map("unique_visitors")
-  totalParticipants Int      @default(0) @map("total_participants")
+  totalViews        Int @default(0) @map("total_views")
+  uniqueVisitors    Int @default(0) @map("unique_visitors")
+  totalParticipants Int @default(0) @map("total_participants")
 
   // Idea funnel
-  ideasSubmitted    Int      @default(0) @map("ideas_submitted")
-  ideasQualified    Int      @default(0) @map("ideas_qualified")
-  ideasHot          Int      @default(0) @map("ideas_hot")
-  ideasEvaluated    Int      @default(0) @map("ideas_evaluated")
-  ideasSelected     Int      @default(0) @map("ideas_selected")
+  ideasSubmitted Int @default(0) @map("ideas_submitted")
+  ideasQualified Int @default(0) @map("ideas_qualified")
+  ideasHot       Int @default(0) @map("ideas_hot")
+  ideasEvaluated Int @default(0) @map("ideas_evaluated")
+  ideasSelected  Int @default(0) @map("ideas_selected")
 
   // Activity counters
-  totalComments     Int      @default(0) @map("total_comments")
-  totalVotes        Int      @default(0) @map("total_votes")
-  totalLikes        Int      @default(0) @map("total_likes")
+  totalComments Int @default(0) @map("total_comments")
+  totalVotes    Int @default(0) @map("total_votes")
+  totalLikes    Int @default(0) @map("total_likes")
 
-  createdAt         DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
@@ -392,4 +394,64 @@ model CampaignKpiSnapshot {
   @@index([campaignId])
   @@index([snapshotDate])
   @@map("campaign_kpi_snapshots")
+}
+
+// ── Channel Models ──────────────────────────────────────────
+
+enum ChannelStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("channel_status")
+}
+
+model Channel {
+  id               String        @id @default(cuid())
+  title            String
+  teaser           String?
+  description      String?       @db.Text
+  problemStatement String?       @map("problem_statement") @db.Text
+  bannerUrl        String?       @map("banner_url")
+  status           ChannelStatus @default(ACTIVE)
+
+  // Feature toggles (subset of campaign toggles — no seeding, no timeline)
+  hasQualificationPhase Boolean @default(false) @map("has_qualification_phase")
+  hasDiscussionPhase    Boolean @default(true) @map("has_discussion_phase")
+  hasVoting             Boolean @default(false) @map("has_voting")
+  hasLikes              Boolean @default(true) @map("has_likes")
+
+  // Settings stored as JSON
+  votingCriteria Json? @map("voting_criteria")
+  customFields   Json? @map("custom_fields")
+  settings       Json?
+
+  // References
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy User            @relation("ChannelCreatedBy", fields: [createdById], references: [id])
+  members   ChannelMember[]
+
+  @@index([status])
+  @@index([createdById])
+  @@map("channels")
+}
+
+model ChannelMember {
+  id         String           @id @default(cuid())
+  channelId  String           @map("channel_id")
+  userId     String           @map("user_id")
+  role       ResourceRoleType
+  assignedAt DateTime         @default(now()) @map("assigned_at")
+  assignedBy String?          @map("assigned_by")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, role])
+  @@index([channelId])
+  @@index([userId])
+  @@map("channel_members")
 }

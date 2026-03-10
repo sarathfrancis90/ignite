@@ -42,6 +42,9 @@ export interface EventMap {
   "space.memberAdded": EventPayload;
   "space.memberRemoved": EventPayload;
   "space.memberRoleChanged": EventPayload;
+  "channel.created": EventPayload;
+  "channel.updated": EventPayload;
+  "channel.archived": EventPayload;
 }
 
 export type EventName = keyof EventMap;

@@ -2,15 +2,17 @@
 
 import { cn } from "@/lib/utils";
 
-type CampaignStatusValue =
+type StatusValue =
   | "DRAFT"
   | "SEEDING"
   | "SUBMISSION"
   | "DISCUSSION_VOTING"
   | "EVALUATION"
-  | "CLOSED";
+  | "CLOSED"
+  | "ACTIVE"
+  | "ARCHIVED";
 
-const STATUS_CONFIG: Record<CampaignStatusValue, { label: string; className: string }> = {
+const STATUS_CONFIG: Record<StatusValue, { label: string; className: string }> = {
   DRAFT: {
     label: "Draft",
     className: "bg-gray-100 text-gray-700 border-gray-200",
@@ -35,10 +37,18 @@ const STATUS_CONFIG: Record<CampaignStatusValue, { label: string; className: str
     label: "Closed",
     className: "bg-green-50 text-green-700 border-green-200",
   },
+  ACTIVE: {
+    label: "Active",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  ARCHIVED: {
+    label: "Archived",
+    className: "bg-gray-100 text-gray-500 border-gray-200",
+  },
 };
 
 interface StatusBadgeProps {
-  status: CampaignStatusValue;
+  status: StatusValue;
   className?: string;
 }
 
