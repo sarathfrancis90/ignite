@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+const httpsUrl = z
+  .string()
+  .url("Must be a valid URL")
+  .max(2048)
+  .refine((url: string) => /^https?:\/\//i.test(url), "URL must use http or https protocol");
+
 export const organizationListInput = z.object({
   cursor: z.string().cuid().optional(),
   limit: z.number().int().min(1).max(100).default(20),
@@ -15,8 +21,8 @@ export const organizationListInput = z.object({
 export const organizationCreateInput = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name must be 200 characters or less"),
   description: z.string().max(5000, "Description must be 5000 characters or less").optional(),
-  websiteUrl: z.string().url("Must be a valid URL").max(2048).optional(),
-  logoUrl: z.string().url("Must be a valid URL").max(2048).optional(),
+  websiteUrl: httpsUrl.optional(),
+  logoUrl: httpsUrl.optional(),
   industry: z.string().max(100).optional(),
   location: z.string().max(200).optional(),
   foundedYear: z.number().int().min(1800).max(2100).optional(),
@@ -38,8 +44,8 @@ export const organizationUpdateInput = z.object({
   id: z.string().cuid(),
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(5000).optional().nullable(),
-  websiteUrl: z.string().url().max(2048).optional().nullable(),
-  logoUrl: z.string().url().max(2048).optional().nullable(),
+  websiteUrl: httpsUrl.optional().nullable(),
+  logoUrl: httpsUrl.optional().nullable(),
   industry: z.string().max(100).optional().nullable(),
   location: z.string().max(200).optional().nullable(),
   foundedYear: z.number().int().min(1800).max(2100).optional().nullable(),

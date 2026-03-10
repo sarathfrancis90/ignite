@@ -65,6 +65,7 @@ export interface EventMap {
   "organization.created": EventPayload;
   "organization.updated": EventPayload;
   "organization.archived": EventPayload;
+  "organization.deleted": EventPayload;
   "contact.created": EventPayload;
   "contact.updated": EventPayload;
   "contact.deleted": EventPayload;

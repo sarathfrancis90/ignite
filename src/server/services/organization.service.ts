@@ -8,34 +8,53 @@ import type {
   OrganizationUpdateInput,
 } from "./organization.schemas";
 
-export {
-  organizationListInput,
-  organizationCreateInput,
-  organizationUpdateInput,
-  organizationGetByIdInput,
-  organizationDeleteInput,
-} from "./organization.schemas";
-
-export type {
-  OrganizationListInput,
-  OrganizationCreateInput,
-  OrganizationUpdateInput,
-} from "./organization.schemas";
-
-export {
-  contactListInput,
-  contactCreateInput,
-  contactUpdateInput,
-  contactDeleteInput,
-  contactInviteInput,
-  listContacts,
-  createContact,
-  updateContact,
-  deleteContact,
-  markContactInvited,
-} from "./contact.service";
-
 type JsonSafe = Record<string, string> | null;
+
+const managerInclude = {
+  include: { user: { select: { id: true, name: true, email: true } } },
+} as const;
+
+const orgWithManagersInclude = {
+  _count: { select: { contacts: true } },
+  managers: managerInclude,
+} as const;
+
+type OrgWithManagers = Prisma.OrganizationGetPayload<{
+  include: typeof orgWithManagersInclude;
+}>;
+
+function mapOrganizationToResponse(org: OrgWithManagers) {
+  return {
+    id: org.id,
+    name: org.name,
+    description: org.description,
+    websiteUrl: org.websiteUrl,
+    logoUrl: org.logoUrl,
+    industry: org.industry,
+    location: org.location,
+    foundedYear: org.foundedYear,
+    employeeCount: org.employeeCount,
+    fundingStage: org.fundingStage,
+    fundingTotal: org.fundingTotal,
+    relationshipStatus: org.relationshipStatus,
+    ndaStatus: org.ndaStatus,
+    isConfidential: org.isConfidential,
+    isArchived: org.isArchived,
+    crunchbaseId: org.crunchbaseId,
+    innospotId: org.innospotId,
+    customFields: org.customFields as JsonSafe,
+    managementTeam: org.managementTeam as JsonSafe,
+    contactCount: org._count.contacts,
+    managers: org.managers.map((m) => ({
+      id: m.id,
+      role: m.role,
+      user: m.user,
+      assignedAt: m.assignedAt.toISOString(),
+    })),
+    createdAt: org.createdAt.toISOString(),
+    updatedAt: org.updatedAt.toISOString(),
+  };
+}
 
 const childLogger = logger.child({ service: "organization" });
 
@@ -70,11 +89,8 @@ export async function listOrganizations(input: OrganizationListInput) {
   const items = await prisma.organization.findMany({
     where,
     include: {
-      _count: { select: { contacts: true } },
-      managers: {
-        include: { user: { select: { id: true, name: true, email: true } } },
-        take: 3,
-      },
+      ...orgWithManagersInclude,
+      managers: { ...managerInclude, take: 3 },
     },
     take: input.limit + 1,
     ...(input.cursor ? { skip: 1, cursor: { id: input.cursor } } : {}),
@@ -88,30 +104,7 @@ export async function listOrganizations(input: OrganizationListInput) {
   }
 
   return {
-    items: items.map((org) => ({
-      id: org.id,
-      name: org.name,
-      description: org.description,
-      websiteUrl: org.websiteUrl,
-      logoUrl: org.logoUrl,
-      industry: org.industry,
-      location: org.location,
-      fundingStage: org.fundingStage,
-      fundingTotal: org.fundingTotal,
-      relationshipStatus: org.relationshipStatus,
-      ndaStatus: org.ndaStatus,
-      isConfidential: org.isConfidential,
-      isArchived: org.isArchived,
-      contactCount: org._count.contacts,
-      managers: org.managers.map((m) => ({
-        id: m.id,
-        role: m.role,
-        user: m.user,
-      })),
-      customFields: org.customFields as JsonSafe,
-      createdAt: org.createdAt.toISOString(),
-      updatedAt: org.updatedAt.toISOString(),
-    })),
+    items: items.map(mapOrganizationToResponse),
     nextCursor,
   };
 }
@@ -120,13 +113,8 @@ export async function getOrganizationById(id: string) {
   const org = await prisma.organization.findUnique({
     where: { id },
     include: {
-      contacts: {
-        orderBy: [{ isPrimary: "desc" }, { lastName: "asc" }],
-      },
-      managers: {
-        include: { user: { select: { id: true, name: true, email: true } } },
-      },
-      _count: { select: { contacts: true } },
+      ...orgWithManagersInclude,
+      contacts: { orderBy: [{ isPrimary: "desc" }, { lastName: "asc" }] },
     },
   });
 
@@ -135,26 +123,7 @@ export async function getOrganizationById(id: string) {
   }
 
   return {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    websiteUrl: org.websiteUrl,
-    logoUrl: org.logoUrl,
-    industry: org.industry,
-    location: org.location,
-    foundedYear: org.foundedYear,
-    employeeCount: org.employeeCount,
-    fundingStage: org.fundingStage,
-    fundingTotal: org.fundingTotal,
-    relationshipStatus: org.relationshipStatus,
-    ndaStatus: org.ndaStatus,
-    isConfidential: org.isConfidential,
-    isArchived: org.isArchived,
-    crunchbaseId: org.crunchbaseId,
-    innospotId: org.innospotId,
-    customFields: org.customFields as JsonSafe,
-    managementTeam: org.managementTeam as JsonSafe,
-    contactCount: org._count.contacts,
+    ...mapOrganizationToResponse(org),
     contacts: org.contacts.map((c) => ({
       id: c.id,
       firstName: c.firstName,
@@ -167,14 +136,6 @@ export async function getOrganizationById(id: string) {
       linkedUserId: c.linkedUserId,
       createdAt: c.createdAt.toISOString(),
     })),
-    managers: org.managers.map((m) => ({
-      id: m.id,
-      role: m.role,
-      user: m.user,
-      assignedAt: m.assignedAt.toISOString(),
-    })),
-    createdAt: org.createdAt.toISOString(),
-    updatedAt: org.updatedAt.toISOString(),
   };
 }
 
@@ -218,12 +179,7 @@ export async function createOrganization(input: OrganizationCreateInput, actorId
         },
       },
     },
-    include: {
-      _count: { select: { contacts: true } },
-      managers: {
-        include: { user: { select: { id: true, name: true, email: true } } },
-      },
-    },
+    include: orgWithManagersInclude,
   });
 
   childLogger.info({ organizationId: org.id, actorId }, "Organization created");
@@ -236,35 +192,7 @@ export async function createOrganization(input: OrganizationCreateInput, actorId
     metadata: { name: org.name, relationshipStatus: org.relationshipStatus },
   });
 
-  return {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    websiteUrl: org.websiteUrl,
-    logoUrl: org.logoUrl,
-    industry: org.industry,
-    location: org.location,
-    foundedYear: org.foundedYear,
-    employeeCount: org.employeeCount,
-    fundingStage: org.fundingStage,
-    fundingTotal: org.fundingTotal,
-    relationshipStatus: org.relationshipStatus,
-    ndaStatus: org.ndaStatus,
-    isConfidential: org.isConfidential,
-    isArchived: org.isArchived,
-    crunchbaseId: org.crunchbaseId,
-    innospotId: org.innospotId,
-    customFields: org.customFields as JsonSafe,
-    managementTeam: org.managementTeam as JsonSafe,
-    contactCount: org._count.contacts,
-    managers: org.managers.map((m) => ({
-      id: m.id,
-      role: m.role,
-      user: m.user,
-    })),
-    createdAt: org.createdAt.toISOString(),
-    updatedAt: org.updatedAt.toISOString(),
-  };
+  return mapOrganizationToResponse(org);
 }
 
 export async function updateOrganization(input: OrganizationUpdateInput, actorId: string) {
@@ -290,22 +218,29 @@ export async function updateOrganization(input: OrganizationUpdateInput, actorId
     }
   }
 
+  const scalarFields = [
+    "name",
+    "description",
+    "websiteUrl",
+    "logoUrl",
+    "industry",
+    "location",
+    "foundedYear",
+    "employeeCount",
+    "fundingStage",
+    "fundingTotal",
+    "relationshipStatus",
+    "ndaStatus",
+    "isConfidential",
+    "crunchbaseId",
+    "innospotId",
+  ] as const;
   const data: Prisma.OrganizationUpdateInput = {};
-  if (input.name !== undefined) data.name = input.name;
-  if (input.description !== undefined) data.description = input.description;
-  if (input.websiteUrl !== undefined) data.websiteUrl = input.websiteUrl;
-  if (input.logoUrl !== undefined) data.logoUrl = input.logoUrl;
-  if (input.industry !== undefined) data.industry = input.industry;
-  if (input.location !== undefined) data.location = input.location;
-  if (input.foundedYear !== undefined) data.foundedYear = input.foundedYear;
-  if (input.employeeCount !== undefined) data.employeeCount = input.employeeCount;
-  if (input.fundingStage !== undefined) data.fundingStage = input.fundingStage;
-  if (input.fundingTotal !== undefined) data.fundingTotal = input.fundingTotal;
-  if (input.relationshipStatus !== undefined) data.relationshipStatus = input.relationshipStatus;
-  if (input.ndaStatus !== undefined) data.ndaStatus = input.ndaStatus;
-  if (input.isConfidential !== undefined) data.isConfidential = input.isConfidential;
-  if (input.crunchbaseId !== undefined) data.crunchbaseId = input.crunchbaseId;
-  if (input.innospotId !== undefined) data.innospotId = input.innospotId;
+  for (const key of scalarFields) {
+    if (input[key] !== undefined) {
+      (data as Record<string, unknown>)[key] = input[key];
+    }
+  }
   if (input.customFields !== undefined)
     data.customFields = input.customFields === null ? Prisma.DbNull : input.customFields;
   if (input.managementTeam !== undefined)
@@ -314,12 +249,7 @@ export async function updateOrganization(input: OrganizationUpdateInput, actorId
   const org = await prisma.organization.update({
     where: { id: input.id },
     data,
-    include: {
-      _count: { select: { contacts: true } },
-      managers: {
-        include: { user: { select: { id: true, name: true, email: true } } },
-      },
-    },
+    include: orgWithManagersInclude,
   });
 
   childLogger.info({ organizationId: org.id, actorId }, "Organization updated");
@@ -332,35 +262,7 @@ export async function updateOrganization(input: OrganizationUpdateInput, actorId
     metadata: { updatedFields: Object.keys(data) },
   });
 
-  return {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    websiteUrl: org.websiteUrl,
-    logoUrl: org.logoUrl,
-    industry: org.industry,
-    location: org.location,
-    foundedYear: org.foundedYear,
-    employeeCount: org.employeeCount,
-    fundingStage: org.fundingStage,
-    fundingTotal: org.fundingTotal,
-    relationshipStatus: org.relationshipStatus,
-    ndaStatus: org.ndaStatus,
-    isConfidential: org.isConfidential,
-    isArchived: org.isArchived,
-    crunchbaseId: org.crunchbaseId,
-    innospotId: org.innospotId,
-    customFields: org.customFields as JsonSafe,
-    managementTeam: org.managementTeam as JsonSafe,
-    contactCount: org._count.contacts,
-    managers: org.managers.map((m) => ({
-      id: m.id,
-      role: m.role,
-      user: m.user,
-    })),
-    createdAt: org.createdAt.toISOString(),
-    updatedAt: org.updatedAt.toISOString(),
-  };
+  return mapOrganizationToResponse(org);
 }
 
 export async function deleteOrganization(id: string, actorId: string) {
@@ -368,16 +270,13 @@ export async function deleteOrganization(id: string, actorId: string) {
     where: { id },
     select: { id: true, name: true },
   });
-
   if (!existing) {
     throw new OrganizationServiceError("Organization not found", "ORGANIZATION_NOT_FOUND");
   }
-
   await prisma.organization.delete({ where: { id } });
-
   childLogger.info({ organizationId: id, actorId }, "Organization deleted");
 
-  eventBus.emit("organization.archived", {
+  eventBus.emit("organization.deleted", {
     entity: "organization",
     entityId: id,
     actor: actorId,
@@ -391,17 +290,12 @@ export async function deleteOrganization(id: string, actorId: string) {
 export async function checkDuplicateOrganization(name: string, excludeId?: string) {
   const where: Prisma.OrganizationWhereInput = {
     name: { equals: name, mode: "insensitive" },
+    ...(excludeId ? { id: { not: excludeId } } : {}),
   };
-
-  if (excludeId) {
-    where.id = { not: excludeId };
-  }
-
   const existing = await prisma.organization.findFirst({
     where,
     select: { id: true, name: true },
   });
-
   return existing
     ? { isDuplicate: true, existingId: existing.id, existingName: existing.name }
     : { isDuplicate: false };

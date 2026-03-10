@@ -4,16 +4,6 @@ import { eventBus } from "@/server/events/event-bus";
 import type { Prisma } from "@prisma/client";
 import type { ContactListInput, ContactCreateInput, ContactUpdateInput } from "./contact.schemas";
 
-export {
-  contactListInput,
-  contactCreateInput,
-  contactUpdateInput,
-  contactDeleteInput,
-  contactInviteInput,
-} from "./contact.schemas";
-
-export type { ContactListInput, ContactCreateInput, ContactUpdateInput } from "./contact.schemas";
-
 const childLogger = logger.child({ service: "contact" });
 
 export async function listContacts(input: ContactListInput) {
@@ -71,23 +61,25 @@ export async function createContact(input: ContactCreateInput, actorId: string) 
     throw new ContactServiceError("Organization not found", "ORGANIZATION_NOT_FOUND");
   }
 
-  if (input.isPrimary) {
-    await prisma.contact.updateMany({
-      where: { organizationId: input.organizationId, isPrimary: true },
-      data: { isPrimary: false },
-    });
-  }
+  const contact = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    if (input.isPrimary) {
+      await tx.contact.updateMany({
+        where: { organizationId: input.organizationId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
 
-  const contact = await prisma.contact.create({
-    data: {
-      organizationId: input.organizationId,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      phone: input.phone,
-      title: input.title,
-      isPrimary: input.isPrimary,
-    },
+    return tx.contact.create({
+      data: {
+        organizationId: input.organizationId,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phone: input.phone,
+        title: input.title,
+        isPrimary: input.isPrimary,
+      },
+    });
   });
 
   childLogger.info(
@@ -131,17 +123,6 @@ export async function updateContact(input: ContactUpdateInput, actorId: string) 
     throw new ContactServiceError("Contact not found", "CONTACT_NOT_FOUND");
   }
 
-  if (input.isPrimary === true) {
-    await prisma.contact.updateMany({
-      where: {
-        organizationId: existing.organizationId,
-        isPrimary: true,
-        id: { not: input.id },
-      },
-      data: { isPrimary: false },
-    });
-  }
-
   const data: Prisma.ContactUpdateInput = {};
   if (input.firstName !== undefined) data.firstName = input.firstName;
   if (input.lastName !== undefined) data.lastName = input.lastName;
@@ -150,9 +131,22 @@ export async function updateContact(input: ContactUpdateInput, actorId: string) 
   if (input.title !== undefined) data.title = input.title;
   if (input.isPrimary !== undefined) data.isPrimary = input.isPrimary;
 
-  const contact = await prisma.contact.update({
-    where: { id: input.id },
-    data,
+  const contact = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    if (input.isPrimary === true) {
+      await tx.contact.updateMany({
+        where: {
+          organizationId: existing.organizationId,
+          isPrimary: true,
+          id: { not: input.id },
+        },
+        data: { isPrimary: false },
+      });
+    }
+
+    return tx.contact.update({
+      where: { id: input.id },
+      data,
+    });
   });
 
   childLogger.info({ contactId: contact.id, actorId }, "Contact updated");

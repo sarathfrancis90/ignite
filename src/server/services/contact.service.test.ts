@@ -6,26 +6,30 @@ import {
   deleteContact,
   markContactInvited,
   ContactServiceError,
-  contactListInput,
-  contactCreateInput,
-  contactUpdateInput,
 } from "./contact.service";
+import { contactListInput, contactCreateInput, contactUpdateInput } from "./contact.schemas";
 
-vi.mock("@/server/lib/prisma", () => ({
-  prisma: {
-    organization: {
-      findUnique: vi.fn(),
+vi.mock("@/server/lib/prisma", () => {
+  const contactMethods = {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+    delete: vi.fn(),
+  };
+  return {
+    prisma: {
+      organization: {
+        findUnique: vi.fn(),
+      },
+      contact: contactMethods,
+      $transaction: vi.fn((fn: (tx: { contact: typeof contactMethods }) => unknown) =>
+        fn({ contact: contactMethods }),
+      ),
     },
-    contact: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-      delete: vi.fn(),
-    },
-  },
-}));
+  };
+});
 
 vi.mock("@/server/lib/logger", () => ({
   logger: {

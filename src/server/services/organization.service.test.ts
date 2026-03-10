@@ -7,10 +7,12 @@ import {
   deleteOrganization,
   checkDuplicateOrganization,
   OrganizationServiceError,
+} from "./organization.service";
+import {
   organizationListInput,
   organizationCreateInput,
   organizationUpdateInput,
-} from "./organization.service";
+} from "./organization.schemas";
 
 vi.mock("@/server/lib/prisma", () => ({
   prisma: {
@@ -380,7 +382,7 @@ describe("organization.service", () => {
 
       expect(result.id).toBe("org-1");
       expect(eventBus.emit).toHaveBeenCalledWith(
-        "organization.archived",
+        "organization.deleted",
         expect.objectContaining({ entityId: "org-1" }),
       );
     });

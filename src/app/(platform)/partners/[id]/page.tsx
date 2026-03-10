@@ -18,6 +18,15 @@ import { RelationshipBadge, NdaBadge } from "@/components/organizations/Organiza
 import { ContactList } from "@/components/organizations/ContactList";
 import { trpc } from "@/lib/trpc";
 
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function OrganizationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -149,7 +158,7 @@ export default function OrganizationDetailPage() {
               </div>
             )}
 
-            {org.websiteUrl && (
+            {org.websiteUrl && isSafeUrl(org.websiteUrl) && (
               <div>
                 <dt className="flex items-center gap-1 text-sm font-medium text-gray-500">
                   <Globe className="h-3.5 w-3.5" />

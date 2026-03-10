@@ -7,6 +7,8 @@ import {
   organizationUpdateInput,
   organizationGetByIdInput,
   organizationDeleteInput,
+} from "@/server/services/organization.schemas";
+import {
   listOrganizations,
   getOrganizationById,
   createOrganization,
@@ -14,18 +16,22 @@ import {
   deleteOrganization,
   checkDuplicateOrganization,
   OrganizationServiceError,
+} from "@/server/services/organization.service";
+import {
   contactListInput,
   contactCreateInput,
   contactUpdateInput,
   contactDeleteInput,
   contactInviteInput,
+} from "@/server/services/contact.schemas";
+import {
   listContacts,
   createContact,
   updateContact,
   deleteContact,
   markContactInvited,
-} from "@/server/services/organization.service";
-import { ContactServiceError } from "@/server/services/contact.service";
+  ContactServiceError,
+} from "@/server/services/contact.service";
 import { z } from "zod";
 
 function handleOrganizationError(error: unknown): never {
@@ -34,6 +40,7 @@ function handleOrganizationError(error: unknown): never {
   if (error instanceof OrganizationServiceError) {
     const codeMap: Record<string, "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT"> = {
       ORGANIZATION_NOT_FOUND: "NOT_FOUND",
+      DUPLICATE_CRUNCHBASE_ID: "CONFLICT",
     };
 
     throw new TRPCError({
