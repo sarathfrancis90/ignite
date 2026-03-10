@@ -47,8 +47,9 @@ export default defineConfig({
       name: "visual-mobile",
       testDir: "./tests/visual",
       use: {
-        ...devices["iPhone 14"],
+        ...devices["Desktop Chrome"],
         viewport: { width: 375, height: 812 },
+        isMobile: true,
       },
     },
   ],
