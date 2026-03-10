@@ -1,0 +1,325 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String?
+  firstName         String
+  lastName          String
+  displayName       String?
+  avatarUrl         String?
+  bio               String?
+  skills            String[]  @default([])
+  preferredLanguage String    @default("en")
+  contentLanguages  String[]  @default(["en"])
+  timezone          String    @default("UTC")
+  isInternal        Boolean   @default(true)
+  isActive          Boolean   @default(true)
+  lastLoginAt       DateTime?
+  emailFrequency    EmailFrequency @default(IMMEDIATELY)
+  privacySettings   Json      @default("{}")
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  orgUnitId         String?
+  orgUnit           OrgUnit?  @relation(fields: [orgUnitId], references: [id])
+
+  ideas             Idea[]              @relation("IdeaContributor")
+  coAuthoredIdeas   IdeaCoAuthor[]
+  comments          Comment[]
+  votes             Vote[]
+  likes             Like[]
+  activityLogs      ActivityLog[]
+  followedItems     Follow[]
+
+  @@index([email])
+  @@index([orgUnitId])
+}
+
+enum EmailFrequency {
+  IMMEDIATELY
+  DAILY
+  WEEKLY
+  NEVER
+}
+
+model OrgUnit {
+  id          String    @id @default(cuid())
+  name        String
+  code        String?   @unique
+  description String?
+  parentId    String?
+  parent      OrgUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children    OrgUnit[] @relation("OrgUnitHierarchy")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+
+  @@index([parentId])
+}
+
+model Campaign {
+  id                  String          @id @default(cuid())
+  title               String
+  teaser              String?
+  description         String?
+  bannerUrl           String?
+  status              CampaignStatus  @default(DRAFT)
+
+  hasQualificationPhase  Boolean @default(false)
+  hasCommunityGraduation Boolean @default(true)
+  hasVoting              Boolean @default(false)
+  hasLikes               Boolean @default(true)
+
+  graduationVisitors     Int @default(10)
+  graduationCommenters   Int @default(5)
+  graduationLikes        Int @default(0)
+  graduationVoters       Int @default(0)
+  graduationVotingLevel  Float @default(0)
+  graduationDaysInStatus Int @default(0)
+
+  audienceType          AudienceType @default(ALL_INTERNAL)
+  votingCriteria        Json?
+  customFields          Json?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdById           String
+
+  members               CampaignMember[]
+  ideas                 Idea[]
+
+  @@index([status])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SEEDING
+  SUBMISSION
+  DISCUSSION_VOTING
+  EVALUATION
+  CLOSED
+}
+
+enum AudienceType {
+  ALL_INTERNAL
+  SELECTED_INTERNAL
+  ALL_EXTERNAL
+  SELECTED_EXTERNAL
+  MIXED
+}
+
+model CampaignMember {
+  id         String       @id @default(cuid())
+  campaignId String
+  userId     String
+  role       CampaignRole
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  assignedAt DateTime     @default(now())
+
+  @@unique([campaignId, userId, role])
+  @@index([campaignId])
+  @@index([userId])
+}
+
+enum CampaignRole {
+  MANAGER
+  SPONSOR
+  MODERATOR
+  EVALUATOR
+  SEEDING_TEAM
+  IDEA_COACH
+}
+
+model Idea {
+  id               String      @id @default(cuid())
+  referenceNumber  String      @unique @default(cuid())
+  title            String
+  description      String?
+  imageUrl         String?
+  status           IdeaStatus  @default(DRAFT)
+  isConfidential   Boolean     @default(false)
+  previousStatus   String?
+  archiveReason    String?
+  customFieldValues Json?
+
+  viewCount        Int         @default(0)
+  commentCount     Int         @default(0)
+  likeCount        Int         @default(0)
+  voteCount        Int         @default(0)
+  avgVoteScore     Float?
+  isHot            Boolean     @default(false)
+  hotAt            DateTime?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  submittedAt      DateTime?
+  communityDiscussionStartedAt DateTime?
+
+  contributorId    String
+  contributor      User        @relation("IdeaContributor", fields: [contributorId], references: [id])
+  campaignId       String?
+  campaign         Campaign?   @relation(fields: [campaignId], references: [id])
+  ideaCoachId      String?
+
+  coAuthors        IdeaCoAuthor[]
+  comments         Comment[]
+  votes            Vote[]
+  likes            Like[]
+  tags             IdeaTag[]
+  attachments      IdeaAttachment[]
+  activityLogs     ActivityLog[]
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([contributorId])
+  @@index([isHot])
+}
+
+enum IdeaStatus {
+  DRAFT
+  QUALIFICATION
+  COMMUNITY_DISCUSSION
+  HOT
+  EVALUATION
+  SELECTED_CONCEPT
+  SELECTED_IMPLEMENTATION
+  IMPLEMENTED
+  IMPLEMENTATION_CANCELED
+  ARCHIVED
+}
+
+model IdeaCoAuthor {
+  id     String @id @default(cuid())
+  ideaId String
+  userId String
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, userId])
+}
+
+model IdeaTag {
+  id     String @id @default(cuid())
+  ideaId String
+  tagId  String
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id])
+
+  @@unique([ideaId, tagId])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  ideaTags  IdeaTag[]
+}
+
+model IdeaAttachment {
+  id       String   @id @default(cuid())
+  ideaId   String
+  idea     Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  fileName String
+  fileUrl  String
+  fileSize Int
+  mimeType String
+  createdAt DateTime @default(now())
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  content   String
+  isPrivate Boolean   @default(false)
+  perspective String?
+
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id])
+
+  ideaId    String?
+  idea      Idea?     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  parentId  String?
+  parent    Comment?  @relation("CommentThread", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentThread")
+
+  isFlagged Boolean   @default(false)
+  flagCount Int       @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([ideaId])
+  @@index([parentId])
+}
+
+model Vote {
+  id          String  @id @default(cuid())
+  userId      String
+  ideaId      String
+  criterionId String?
+  score       Float
+
+  user       User    @relation(fields: [userId], references: [id])
+  idea       Idea    @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, ideaId, criterionId])
+  @@index([ideaId])
+}
+
+model Like {
+  id     String @id @default(cuid())
+  userId String
+  ideaId String
+  user   User   @relation(fields: [userId], references: [id])
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, ideaId])
+}
+
+model Follow {
+  id         String @id @default(cuid())
+  userId     String
+  entityType String
+  entityId   String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([entityType, entityId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  eventType String
+  ideaId    String?
+  actorId   String
+  metadata  Json     @default("{}")
+
+  idea      Idea?    @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  actor     User     @relation(fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([ideaId])
+  @@index([actorId])
+  @@index([eventType])
+  @@index([createdAt])
+}
