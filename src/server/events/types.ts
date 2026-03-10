@@ -70,6 +70,13 @@ export interface EventMap {
   "contact.updated": EventPayload;
   "contact.deleted": EventPayload;
   "contact.invited": EventPayload;
+  "sso.providerCreated": EventPayload;
+  "sso.providerUpdated": EventPayload;
+  "sso.providerDeleted": EventPayload;
+  "sso.providerEnabled": EventPayload;
+  "sso.providerDisabled": EventPayload;
+  "sso.userProvisioned": EventPayload;
+  "sso.groupSynced": EventPayload;
 }
 
 export type EventName = keyof EventMap;

@@ -70,6 +70,7 @@ export const Action = {
   ADMIN_MANAGE_GROUPS: "admin.manageGroups",
   ADMIN_VIEW_METRICS: "admin.viewMetrics",
   ADMIN_MANAGE_SPACES: "admin.manageSpaces",
+  ADMIN_MANAGE_SSO: "admin.manageSso",
 
   // Organization (partner) management
   ORGANIZATION_CREATE: "organization.create",
