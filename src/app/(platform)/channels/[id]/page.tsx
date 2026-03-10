@@ -4,6 +4,7 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { format } from "date-fns";
 import { ArrowLeft, Radio, Users, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,7 +85,7 @@ export default function ChannelDetailPage() {
             </span>
             <span>
               Created by {channel.createdBy.name ?? channel.createdBy.email} on{" "}
-              {new Date(channel.createdAt).toLocaleDateString()}
+              {format(new Date(channel.createdAt), "MMM d, yyyy")}
             </span>
           </div>
         </div>

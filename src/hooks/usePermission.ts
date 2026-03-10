@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
-import { globalRoleHasPermission } from "@/server/lib/permissions";
-import type { ActionType } from "@/server/lib/permissions";
+import { globalRoleHasPermission } from "@/lib/permissions";
+import type { ActionType } from "@/lib/permissions";
 
 /**
  * Client-side permission check based on the user's global role.

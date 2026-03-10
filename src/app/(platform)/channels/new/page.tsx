@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { channelCreateInput } from "@/server/services/channel.schemas";
-import type { ChannelCreateInput } from "@/server/services/channel.schemas";
+import { channelCreateInput } from "@/lib/schemas/channel";
+import type { ChannelCreateInput } from "@/lib/schemas/channel";
 
 export default function NewChannelPage() {
   const router = useRouter();

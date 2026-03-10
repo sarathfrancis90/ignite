@@ -6,10 +6,11 @@ import { Radio, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChannelCard } from "@/components/channels/ChannelCard";
+import type { ChannelCardProps } from "@/components/channels/ChannelCard";
 import { trpc } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePermission } from "@/hooks/usePermission";
-import { Action } from "@/server/lib/permissions";
+import { Action } from "@/lib/permissions";
 
 type ChannelStatusFilter = "ACTIVE" | "ARCHIVED" | undefined;
 
@@ -116,20 +117,9 @@ export default function ChannelsPage() {
 
       {channelsQuery.data && channelsQuery.data.items.length > 0 && (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {channelsQuery.data.items.map(
-            (channel: {
-              id: string;
-              title: string;
-              teaser: string | null;
-              bannerUrl: string | null;
-              status: "ACTIVE" | "ARCHIVED";
-              memberCount: number;
-              createdBy: { id: string; name: string | null; email: string; image: string | null };
-              createdAt: string;
-            }) => (
-              <ChannelCard key={channel.id} channel={channel} />
-            ),
-          )}
+          {channelsQuery.data.items.map((channel: ChannelCardProps["channel"]) => (
+            <ChannelCard key={channel.id} channel={channel} />
+          ))}
         </div>
       )}
     </div>

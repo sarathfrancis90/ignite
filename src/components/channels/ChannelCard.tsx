@@ -6,7 +6,7 @@ import { Users, User } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
-interface ChannelCardProps {
+export interface ChannelCardProps {
   channel: {
     id: string;
     title: string;
