@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// MODULE 1: USERS (minimal for bucket story)
+// ============================================================
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  firstName     String
+  lastName      String
+  displayName   String?
+  avatarUrl     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ideas         Idea[]   @relation("IdeaContributor")
+  campaignRoles CampaignMember[]
+
+  @@index([email])
+}
+
+// ============================================================
+// MODULE 2: CAMPAIGNS (minimal for bucket story)
+// ============================================================
+
+model Campaign {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  status      CampaignStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  ideas       Idea[]
+  buckets     Bucket[]
+  members     CampaignMember[]
+
+  @@index([status])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SEEDING
+  SUBMISSION
+  DISCUSSION_VOTING
+  EVALUATION
+  CLOSED
+}
+
+model CampaignMember {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String   @default("MEMBER")
+  createdAt  DateTime @default(now())
+
+  @@unique([campaignId, userId])
+}
+
+// ============================================================
+// MODULE 3: IDEAS
+// ============================================================
+
+model Idea {
+  id              String     @id @default(cuid())
+  referenceNumber String     @unique @default(cuid())
+  title           String
+  description     String?
+  status          IdeaStatus @default(DRAFT)
+  isConfidential  Boolean    @default(false)
+
+  viewCount       Int        @default(0)
+  commentCount    Int        @default(0)
+  likeCount       Int        @default(0)
+  voteCount       Int        @default(0)
+  avgVoteScore    Float?
+  isHot           Boolean    @default(false)
+  hotAt           DateTime?
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  submittedAt     DateTime?
+
+  contributorId   String
+  contributor     User       @relation("IdeaContributor", fields: [contributorId], references: [id])
+
+  campaignId      String?
+  campaign        Campaign?  @relation(fields: [campaignId], references: [id])
+
+  categoryId      String?
+  category        IdeaCategory? @relation(fields: [categoryId], references: [id])
+
+  tags            IdeaTag[]
+  bucketAssignments IdeaBucket[]
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([contributorId])
+  @@index([isHot])
+}
+
+enum IdeaStatus {
+  DRAFT
+  QUALIFICATION
+  COMMUNITY_DISCUSSION
+  HOT
+  EVALUATION
+  SELECTED_IMPLEMENTATION
+  SELECTED_CONCEPT
+  IMPLEMENTED
+  ARCHIVED
+}
+
+model IdeaCategory {
+  id    String @id @default(cuid())
+  name  String
+  ideas Idea[]
+}
+
+model IdeaTag {
+  id     String @id @default(cuid())
+  name   String
+  ideaId String
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId])
+}
+
+// ============================================================
+// MODULE 4: BUCKETS
+// ============================================================
+
+model Bucket {
+  id          String   @id @default(cuid())
+  name        String
+  color       String?  @default("#6366F1")
+  isSmart     Boolean  @default(false)
+  smartFilter Json?    // saved filter criteria for smart buckets
+
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       IdeaBucket[]
+
+  @@unique([campaignId, name])
+  @@index([campaignId])
+}
+
+model IdeaBucket {
+  id       String   @id @default(cuid())
+  ideaId   String
+  bucketId String
+  idea     Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  bucket   Bucket   @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([ideaId, bucketId])
+  @@index([bucketId])
+  @@index([ideaId])
+}
