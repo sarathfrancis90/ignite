@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Globe, Plus, AlertTriangle } from "lucide-react";
-import { SpaceList, SpaceDetailPanel } from "@/components/admin/SpaceManager";
+import { Globe, Plus, AlertTriangle, Loader2 } from "lucide-react";
+import { SpaceList } from "@/components/admin/SpaceList";
+import type { SpaceItem } from "@/components/admin/SpaceList";
+import { SpaceDetailPanel } from "@/components/admin/SpaceDetailPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +16,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { trpc } from "@/lib/trpc";
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50);
+}
 
 export default function AdminSpacesPage() {
   const [search, setSearch] = React.useState("");
@@ -39,9 +50,70 @@ export default function AdminSpacesPage() {
     slug: "",
   });
 
-  const featureEnabled = process.env.NEXT_PUBLIC_FEATURE_INNOVATION_SPACES === "true";
+  const featureQuery = trpc.space.isEnabled.useQuery();
+  const utils = trpc.useUtils();
 
-  if (!featureEnabled) {
+  const spacesQuery = trpc.space.list.useQuery(
+    { limit: 20, search: search || undefined },
+    { enabled: featureQuery.data?.enabled === true },
+  );
+
+  const detailQuery = trpc.space.getById.useQuery(
+    { id: selectedSpaceId! },
+    { enabled: !!selectedSpaceId && featureQuery.data?.enabled === true },
+  );
+
+  const createMutation = trpc.space.create.useMutation({
+    onSuccess: () => {
+      void utils.space.list.invalidate();
+      setCreateDialogOpen(false);
+    },
+  });
+
+  const updateMutation = trpc.space.update.useMutation({
+    onSuccess: () => {
+      void utils.space.list.invalidate();
+      if (selectedSpaceId) void utils.space.getById.invalidate({ id: selectedSpaceId });
+      setEditDialogOpen(false);
+    },
+  });
+
+  const archiveMutation = trpc.space.archive.useMutation({
+    onSuccess: () => {
+      void utils.space.list.invalidate();
+      if (selectedSpaceId) void utils.space.getById.invalidate({ id: selectedSpaceId });
+    },
+  });
+
+  const activateMutation = trpc.space.activate.useMutation({
+    onSuccess: () => {
+      void utils.space.list.invalidate();
+      if (selectedSpaceId) void utils.space.getById.invalidate({ id: selectedSpaceId });
+    },
+  });
+
+  const removeMemberMutation = trpc.space.removeMember.useMutation({
+    onSuccess: () => {
+      if (selectedSpaceId) void utils.space.getById.invalidate({ id: selectedSpaceId });
+      void utils.space.list.invalidate();
+    },
+  });
+
+  const changeMemberRoleMutation = trpc.space.changeMemberRole.useMutation({
+    onSuccess: () => {
+      if (selectedSpaceId) void utils.space.getById.invalidate({ id: selectedSpaceId });
+    },
+  });
+
+  if (featureQuery.isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!featureQuery.data?.enabled) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center p-6">
         <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
@@ -57,17 +129,8 @@ export default function AdminSpacesPage() {
     );
   }
 
-  function generateSlug(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 50);
-  }
-
   return (
     <div className="space-y-6 p-6">
-      {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50">
           <Globe className="h-5 w-5 text-primary-600" />
@@ -80,25 +143,24 @@ export default function AdminSpacesPage() {
         </div>
       </div>
 
-      {/* Split layout: space list + detail panel */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left: Space list */}
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <SpaceList
-            spaces={[]}
-            isLoading={false}
+            spaces={spacesQuery.data?.items ?? []}
+            nextCursor={spacesQuery.data?.nextCursor}
+            isLoading={spacesQuery.isLoading}
             search={search}
             onSearchChange={setSearch}
             selectedSpaceId={selectedSpaceId}
             onSelectSpace={setSelectedSpaceId}
             onLoadMore={() => {
-              // TODO: Wire to cursor-based pagination
+              // Cursor-based pagination would need infinite query; keep simple for now
             }}
             onCreateSpace={() => {
               setCreateForm({ name: "", description: "", slug: "" });
               setCreateDialogOpen(true);
             }}
-            onEditSpace={(space) => {
+            onEditSpace={(space: SpaceItem) => {
               setEditingSpace({
                 id: space.id,
                 name: space.name,
@@ -112,22 +174,38 @@ export default function AdminSpacesPage() {
               });
               setEditDialogOpen(true);
             }}
-            onArchiveSpace={() => {
-              // TODO: Wire to trpc.space.archive.mutate(...)
+            onArchiveSpace={(space: SpaceItem) => {
+              archiveMutation.mutate({ id: space.id });
             }}
-            onActivateSpace={() => {
-              // TODO: Wire to trpc.space.activate.mutate(...)
+            onActivateSpace={(space: SpaceItem) => {
+              activateMutation.mutate({ id: space.id });
             }}
           />
         </div>
 
-        {/* Right: Space detail panel */}
         <div className="rounded-xl border border-gray-200 bg-white p-4">
-          {selectedSpaceId ? (
+          {selectedSpaceId && detailQuery.data ? (
+            <SpaceDetailPanel
+              space={detailQuery.data}
+              isLoading={detailQuery.isLoading}
+              onAddMember={() => {
+                // Add member dialog would be a future enhancement
+              }}
+              onRemoveMember={(userId: string) => {
+                removeMemberMutation.mutate({ spaceId: selectedSpaceId, userId });
+              }}
+              onChangeMemberRole={(
+                userId: string,
+                role: "SPACE_ADMIN" | "SPACE_MANAGER" | "SPACE_MEMBER",
+              ) => {
+                changeMemberRoleMutation.mutate({ spaceId: selectedSpaceId, userId, role });
+              }}
+            />
+          ) : selectedSpaceId && detailQuery.isLoading ? (
             <SpaceDetailPanel
               space={{
                 id: selectedSpaceId,
-                name: "Select a space",
+                name: "",
                 description: null,
                 slug: "",
                 logoUrl: null,
@@ -135,16 +213,10 @@ export default function AdminSpacesPage() {
                 memberCount: 0,
                 members: [],
               }}
-              isLoading={false}
-              onAddMember={() => {
-                // TODO: Wire to add member dialog
-              }}
-              onRemoveMember={() => {
-                // TODO: Wire to trpc.space.removeMember.mutate(...)
-              }}
-              onChangeMemberRole={() => {
-                // TODO: Wire to trpc.space.changeMemberRole.mutate(...)
-              }}
+              isLoading={true}
+              onAddMember={() => {}}
+              onRemoveMember={() => {}}
+              onChangeMemberRole={() => {}}
             />
           ) : (
             <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-gray-400">
@@ -156,7 +228,6 @@ export default function AdminSpacesPage() {
         </div>
       </div>
 
-      {/* Create Space Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent onClose={() => setCreateDialogOpen(false)}>
           <DialogHeader>
@@ -209,19 +280,25 @@ export default function AdminSpacesPage() {
             </Button>
             <Button
               onClick={() => {
-                // TODO: Wire to trpc.space.create.mutate(createForm)
-                setCreateDialogOpen(false);
+                createMutation.mutate({
+                  name: createForm.name,
+                  slug: createForm.slug,
+                  description: createForm.description || undefined,
+                });
               }}
-              disabled={!createForm.name || !createForm.slug}
+              disabled={!createForm.name || !createForm.slug || createMutation.isPending}
             >
-              <Plus className="mr-1.5 h-4 w-4" />
+              {createMutation.isPending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-1.5 h-4 w-4" />
+              )}
               Create Space
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Space Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent onClose={() => setEditDialogOpen(false)}>
           <DialogHeader>
@@ -265,10 +342,17 @@ export default function AdminSpacesPage() {
             </Button>
             <Button
               onClick={() => {
-                // TODO: Wire to trpc.space.update.mutate(...)
-                setEditDialogOpen(false);
+                if (!editingSpace) return;
+                updateMutation.mutate({
+                  id: editingSpace.id,
+                  name: editForm.name || undefined,
+                  slug: editForm.slug || undefined,
+                  description: editForm.description || undefined,
+                });
               }}
+              disabled={updateMutation.isPending}
             >
+              {updateMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Save Changes
             </Button>
           </DialogFooter>
