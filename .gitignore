@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+*.log
+npm-debug.log*

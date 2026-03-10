@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum GlobalRole {
+  PLATFORM_ADMIN
+  INNOVATION_MANAGER
+  CONTRIBUTOR
+  EVALUATOR
+  MODERATOR
+  IDEA_COACH
+}
+
+enum CampaignRole {
+  MANAGER
+  SPONSOR
+  MODERATOR
+  EVALUATOR
+  SEEDING_TEAM
+  IDEA_COACH
+}
+
+enum CampaignStatus {
+  DRAFT
+  SEEDING
+  SUBMISSION
+  DISCUSSION_VOTING
+  EVALUATION
+  CLOSED
+}
+
+enum AudienceType {
+  ALL_INTERNAL
+  SELECTED_INTERNAL
+  ALL_EXTERNAL
+  SELECTED_EXTERNAL
+  MIXED
+}
+
+enum EmailFrequency {
+  IMMEDIATELY
+  DAILY
+  WEEKLY
+  NEVER
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  firstName     String
+  lastName      String
+  displayName   String?
+  avatarUrl     String?
+  bio           String?
+  skills        String[]  @default([])
+  timezone      String    @default("UTC")
+  globalRole    GlobalRole @default(CONTRIBUTOR)
+  isInternal    Boolean   @default(true)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  emailFrequency EmailFrequency @default(IMMEDIATELY)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  orgUnitId     String?
+  orgUnit       OrgUnit?  @relation(fields: [orgUnitId], references: [id])
+
+  userGroups    UserGroupMembership[]
+  campaignRoles CampaignMember[]
+
+  @@index([email])
+  @@index([orgUnitId])
+}
+
+model OrgUnit {
+  id          String    @id @default(cuid())
+  name        String
+  code        String?   @unique
+  description String?
+  parentId    String?
+  parent      OrgUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children    OrgUnit[] @relation("OrgUnitHierarchy")
+  isActive    Boolean   @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  users       User[]
+
+  @@index([parentId])
+}
+
+model UserGroup {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  isSystem    Boolean   @default(false)
+  permissions String[]  @default([])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members     UserGroupMembership[]
+}
+
+model UserGroupMembership {
+  id       String    @id @default(cuid())
+  userId   String
+  groupId  String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@unique([userId, groupId])
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  title         String
+  description   String?
+  status        CampaignStatus @default(DRAFT)
+  audienceType  AudienceType   @default(ALL_INTERNAL)
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  members       CampaignMember[]
+  audienceRules CampaignAudienceRule[]
+
+  @@index([status])
+}
+
+model CampaignMember {
+  id         String       @id @default(cuid())
+  campaignId String
+  userId     String
+  role       CampaignRole
+
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime     @default(now())
+
+  @@unique([campaignId, userId, role])
+  @@index([campaignId])
+  @@index([userId])
+}
+
+model CampaignAudienceRule {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ruleType   String   // "ORG_UNIT", "GROUP", "USER", "INNOVATION_SPACE"
+  targetId   String
+
+  @@index([campaignId])
+}
