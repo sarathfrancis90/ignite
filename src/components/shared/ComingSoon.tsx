@@ -16,7 +16,7 @@ export function ComingSoon({ title, description, icon: Icon }: ComingSoonProps) 
       <p className="mt-3 max-w-md text-center text-base text-gray-500">{description}</p>
       <div className="mt-8 flex items-center gap-2 rounded-full bg-accent-50 px-4 py-2">
         <div className="h-2 w-2 animate-pulse rounded-full bg-accent-500" />
-        <span className="text-accent-700 text-sm font-medium">In Development</span>
+        <span className="text-sm font-medium text-accent-700">In Development</span>
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import type { Config } from "tailwindcss";
+import tailwindAnimate from "tailwindcss-animate";
 
 const config: Config = {
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
@@ -25,6 +27,13 @@ const config: Config = {
           400: "#fbbf24",
           500: "#f59e0b",
           600: "#d97706",
+          700: "#b45309",
+        },
+        sidebar: {
+          DEFAULT: "#111827",
+          hover: "#1f2937",
+          active: "#312e81",
+          border: "#374151",
         },
       },
       fontFamily: {
@@ -38,9 +47,27 @@ const config: Config = {
         lg: "12px",
         xl: "16px",
       },
+      spacing: {
+        sidebar: "260px",
+        "sidebar-collapsed": "64px",
+      },
+      maxWidth: {
+        content: "1440px",
+        prose: "960px",
+        form: "480px",
+        "form-wide": "720px",
+      },
+      boxShadow: {
+        card: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        "card-hover": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+        dropdown: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+      },
+      transitionDuration: {
+        DEFAULT: "150ms",
+      },
     },
   },
-  plugins: [],
+  plugins: [tailwindAnimate],
 };
 
 export default config;

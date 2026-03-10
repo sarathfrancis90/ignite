@@ -1,7 +1,6 @@
-/**
- * Merge class names with Tailwind CSS conflict resolution.
- * Placeholder — Story 1.1 will add clsx + tailwind-merge.
- */
-export function cn(...classes: (string | undefined | false | null)[]): string {
-  return classes.filter(Boolean).join(" ");
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
 }
