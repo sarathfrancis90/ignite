@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createChildLogger, type Logger } from "./logger";
+import { recordHttpRequest, incrementErrors } from "./metrics-store";
 
 type RouteHandler = (
   request: NextRequest,
@@ -13,10 +14,10 @@ interface RequestLogData {
   duration_ms: number;
   user_agent: string | null;
   ip: string | null;
-  requestId: string;
+  correlationId: string;
 }
 
-function generateRequestId(): string {
+function generateCorrelationId(): string {
   return crypto.randomUUID();
 }
 
@@ -30,19 +31,21 @@ function getClientIp(request: NextRequest): string | null {
 
 /**
  * Wraps a Next.js API route handler with structured request logging.
- * Assigns a unique request ID and logs method, path, status, and duration.
+ * Assigns a unique correlation ID, logs method/path/status/duration,
+ * and records HTTP metrics for Prometheus.
  */
 export function withRequestLogging(handler: RouteHandler): RouteHandler {
   return async (
     request: NextRequest,
     context?: { params: Record<string, string> },
   ): Promise<NextResponse> => {
-    const existingRequestId = request.headers.get("x-request-id");
-    const requestId = existingRequestId ?? generateRequestId();
+    const existingCorrelationId =
+      request.headers.get("x-correlation-id") ?? request.headers.get("x-request-id");
+    const correlationId = existingCorrelationId ?? generateCorrelationId();
     const start = performance.now();
 
     const requestLogger: Logger = createChildLogger({
-      requestId,
+      correlationId,
       service: "http",
     });
 
@@ -57,6 +60,7 @@ export function withRequestLogging(handler: RouteHandler): RouteHandler {
       response = await handler(request, context);
     } catch (error: unknown) {
       const duration_ms = Math.round(performance.now() - start);
+      const durationSeconds = duration_ms / 1000;
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       requestLogger.error(
@@ -65,17 +69,28 @@ export function withRequestLogging(handler: RouteHandler): RouteHandler {
           path,
           duration_ms,
           error: errorMessage,
+          correlationId,
         },
         "Request failed with unhandled error",
       );
+
+      recordHttpRequest(method, path, 500, durationSeconds);
+      incrementErrors("http");
 
       response = NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
     const duration_ms = Math.round(performance.now() - start);
+    const durationSeconds = duration_ms / 1000;
     const statusCode = response.status;
     const user_agent = request.headers.get("user-agent");
     const ip = getClientIp(request);
+
+    recordHttpRequest(method, path, statusCode, durationSeconds);
+
+    if (statusCode >= 500) {
+      incrementErrors("http");
+    }
 
     const logData: RequestLogData = {
       method,
@@ -84,7 +99,7 @@ export function withRequestLogging(handler: RouteHandler): RouteHandler {
       duration_ms,
       user_agent,
       ip,
-      requestId,
+      correlationId,
     };
 
     if (statusCode >= 500) {
@@ -95,7 +110,7 @@ export function withRequestLogging(handler: RouteHandler): RouteHandler {
       requestLogger.info(logData, "Request completed");
     }
 
-    response.headers.set("x-request-id", requestId);
+    response.headers.set("x-correlation-id", correlationId);
 
     return response;
   };

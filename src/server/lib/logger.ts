@@ -50,8 +50,10 @@ export type Logger = pino.Logger;
 
 interface ChildLoggerContext {
   requestId?: string;
+  correlationId?: string;
   service?: string;
   userId?: string;
+  procedure?: string;
   [key: string]: unknown;
 }
 
@@ -61,4 +63,21 @@ interface ChildLoggerContext {
  */
 export function createChildLogger(context: ChildLoggerContext): Logger {
   return logger.child(context);
+}
+
+/**
+ * Create a request-scoped logger with correlationId, userId, and procedure.
+ * Used by tRPC middleware to ensure all errors are logged with context.
+ */
+export function createRequestLogger(opts: {
+  correlationId: string;
+  userId?: string;
+  procedure?: string;
+}): Logger {
+  return logger.child({
+    correlationId: opts.correlationId,
+    userId: opts.userId,
+    procedure: opts.procedure,
+    service: "trpc",
+  });
 }

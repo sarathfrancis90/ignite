@@ -2,17 +2,22 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { Session } from "next-auth";
 import { auth } from "@/server/lib/auth";
-import { logger } from "@/server/lib/logger";
+import { logger, createRequestLogger } from "@/server/lib/logger";
 import { checkPermission, RbacServiceError } from "@/server/services/rbac.service";
+import { incrementErrors } from "@/server/lib/metrics-store";
 import type { ActionType } from "@/server/lib/permissions";
 
 export interface TRPCContext {
   session: Session | null;
+  correlationId: string;
 }
 
 export async function createTRPCContext(): Promise<TRPCContext> {
   const session = await auth();
-  return { session };
+  return {
+    session,
+    correlationId: crypto.randomUUID(),
+  };
 }
 
 const t = initTRPC.context<TRPCContext>().create({
@@ -28,14 +33,58 @@ const t = initTRPC.context<TRPCContext>().create({
 });
 
 export const createTRPCRouter = t.router;
-export const publicProcedure = t.procedure;
+
+/**
+ * Logging middleware — attaches correlationId, userId, and procedure name
+ * to every tRPC call. Logs errors with full context.
+ */
+const withLogging = t.middleware(async ({ ctx, next, path, type }) => {
+  const userId = ctx.session?.user?.id;
+  const reqLogger = createRequestLogger({
+    correlationId: ctx.correlationId,
+    userId,
+    procedure: path,
+  });
+
+  const start = performance.now();
+
+  try {
+    const result = await next({ ctx });
+    const duration_ms = Math.round(performance.now() - start);
+    reqLogger.debug({ type, duration_ms }, "Procedure completed");
+    return result;
+  } catch (error) {
+    const duration_ms = Math.round(performance.now() - start);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    reqLogger.error(
+      {
+        type,
+        duration_ms,
+        error: errorMessage,
+        correlationId: ctx.correlationId,
+        userId,
+        procedure: path,
+      },
+      "Procedure failed",
+    );
+
+    incrementErrors("trpc");
+    throw error;
+  }
+});
+
+export const publicProcedure = t.procedure.use(withLogging);
 
 const enforceAuth = t.middleware(({ ctx, next }) => {
   if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }
 
-  logger.debug({ userId: ctx.session.user.id }, "Authenticated request");
+  logger.debug(
+    { userId: ctx.session.user.id, correlationId: ctx.correlationId },
+    "Authenticated request",
+  );
 
   return next({
     ctx: {
@@ -44,7 +93,7 @@ const enforceAuth = t.middleware(({ ctx, next }) => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(enforceAuth);
+export const protectedProcedure = t.procedure.use(withLogging).use(enforceAuth);
 
 /**
  * Composable authorization middleware.
