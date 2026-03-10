@@ -10,12 +10,24 @@ datasource db {
 
 // ── Auth.js Models ────────────────────────────────────────────
 
+enum NotificationFrequency {
+  IMMEDIATE
+  DAILY
+  WEEKLY
+
+  @@map("notification_frequency")
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
   emailVerified DateTime? @map("email_verified")
   name          String?
   image         String?
+  password      String?
+  bio           String?   @db.Text
+  skills        String[]  @default([])
+  notificationFrequency NotificationFrequency @default(IMMEDIATE) @map("notification_frequency")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
