@@ -63,7 +63,7 @@ jobs:
             echo "healthy=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate story is next in chain
+      - name: Validate story dependencies (DAG)
         if: >-
           github.event_name == 'issues' &&
           github.event.action == 'labeled' &&
@@ -74,42 +74,60 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ISSUE_NUM="${{ steps.issue.outputs.number }}"
-          CHAIN_FILE=".github/story-chain.json"
+          DAG_FILE=".github/story-dag.json"
 
-          if [ ! -f "$CHAIN_FILE" ]; then
-            echo "No chain file found. Proceeding (might be a non-chain issue)."
+          if [ ! -f "$DAG_FILE" ]; then
+            echo "No DAG file found. Proceeding (might be a non-DAG issue)."
             echo "valid=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Check if this issue is in the chain
-          IN_CHAIN=$(jq --argjson num "$ISSUE_NUM" '[.chain[] | select(.issue == $num)] | length' "$CHAIN_FILE")
+          # Check if this issue is in the DAG
+          STORY_EPIC=$(jq -r --argjson num "$ISSUE_NUM" '.stories[($num | tostring)].epic // empty' "$DAG_FILE")
 
-          if [ "$IN_CHAIN" -eq 0 ]; then
-            echo "Issue #$ISSUE_NUM is not in the story chain. Proceeding as ad-hoc."
+          if [ -z "$STORY_EPIC" ]; then
+            echo "Issue #$ISSUE_NUM is not in the story DAG. Proceeding as ad-hoc."
             echo "valid=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Check if any EARLIER story in the chain is still open
-          CURRENT_INDEX=$(jq --argjson num "$ISSUE_NUM" '[.chain | to_entries[] | select(.value.issue == $num)][0].key' "$CHAIN_FILE")
+          STORY_ID=$(jq -r --argjson num "$ISSUE_NUM" '.stories[($num | tostring)].id' "$DAG_FILE")
+          EPIC_NAME=$(jq -r --arg ep "$STORY_EPIC" '.epics[$ep].name' "$DAG_FILE")
 
-          if [ "$CURRENT_INDEX" -gt 0 ]; then
-            PREV_INDEX=$((CURRENT_INDEX - 1))
-            PREV_ISSUE=$(jq -r ".chain[$PREV_INDEX].issue" "$CHAIN_FILE")
-            PREV_STATE=$(gh issue view "$PREV_ISSUE" --json state --jq '.state')
+          # Validation 1: Check previous story in same epic is complete
+          EPIC_STORIES=$(jq -r --arg ep "$STORY_EPIC" '.epics[$ep].stories | @json' "$DAG_FILE")
+          STORY_INDEX=$(echo "$EPIC_STORIES" | jq --argjson num "$ISSUE_NUM" 'to_entries[] | select(.value == $num) | .key')
+
+          if [ "$STORY_INDEX" -gt 0 ]; then
+            PREV_INDEX=$((STORY_INDEX - 1))
+            PREV_ISSUE=$(echo "$EPIC_STORIES" | jq ".[$PREV_INDEX]")
+            PREV_STATE=$(gh issue view "$PREV_ISSUE" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
 
             if [ "$PREV_STATE" = "OPEN" ]; then
-              echo "BLOCKED: Previous story #$PREV_ISSUE is still open. Cannot start #$ISSUE_NUM."
+              echo "BLOCKED: Previous story in epic (#$PREV_ISSUE) is still open."
               echo "valid=false" >> "$GITHUB_OUTPUT"
-              # Remove the label to prevent re-triggering
               gh issue edit "$ISSUE_NUM" --remove-label "claude-code"
-              gh issue comment "$ISSUE_NUM" --body "Blocked: The previous story (#$PREV_ISSUE) has not been completed yet. This story will be triggered automatically when #$PREV_ISSUE is merged."
+              gh issue comment "$ISSUE_NUM" --body "Blocked: Previous story in Epic $STORY_EPIC (#$PREV_ISSUE) is still open. This story will be triggered automatically when it completes."
               exit 0
             fi
           fi
 
-          echo "Validation passed. Issue #$ISSUE_NUM is ready for development."
+          # Validation 2: Check all dependency epics are complete
+          for DEP_EPIC in $(jq -r --arg ep "$STORY_EPIC" '.epics[$ep].depends_on[]' "$DAG_FILE"); do
+            for DEP_ISSUE in $(jq -r --arg ep "$DEP_EPIC" '.epics[$ep].stories[]' "$DAG_FILE"); do
+              DEP_STATE=$(gh issue view "$DEP_ISSUE" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$DEP_STATE" = "OPEN" ]; then
+                DEP_NAME=$(jq -r --arg ep "$DEP_EPIC" '.epics[$ep].name' "$DAG_FILE")
+                echo "BLOCKED: Dependency Epic $DEP_EPIC ($DEP_NAME) has open story #$DEP_ISSUE."
+                echo "valid=false" >> "$GITHUB_OUTPUT"
+                gh issue edit "$ISSUE_NUM" --remove-label "claude-code"
+                gh issue comment "$ISSUE_NUM" --body "Blocked: Dependency Epic $DEP_EPIC ($DEP_NAME) is not yet complete (story #$DEP_ISSUE still open). This story will be triggered when all dependencies are met."
+                exit 0
+              fi
+            done
+          done
+
+          echo "DAG validation passed. Story $STORY_ID (Epic $STORY_EPIC: $EPIC_NAME) is ready."
           echo "valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Abort if validation failed
@@ -201,12 +219,56 @@ jobs:
             git rebase origin/main
             ```
 
-            ### Resolving rebase conflicts:
-            - **For new files you created**: Keep YOUR version (`git checkout --ours <file>`)
-            - **For `package-lock.json`**: ALWAYS run `git checkout --theirs package-lock.json && npm install && git add package-lock.json`
-            - **For `prisma/schema.prisma`**: Accept BOTH sides (additive merge). Keep all models from both versions. After resolving, run `npx prisma validate` to confirm correctness.
-            - **For other shared files**: Merge intelligently — keep both features
-            - After resolving each file: `git add <file>` then `git rebase --continue`
+            ### CRITICAL: Resolving rebase conflicts
+            Multiple stories may run in parallel across different epics. You MUST handle
+            conflicts correctly or the entire pipeline stalls.
+
+            **General rule:** Never abort a rebase. Always resolve and continue.
+
+            **For `package-lock.json`** (MOST COMMON conflict):
+            ```
+            git checkout --theirs package-lock.json
+            npm install
+            git add package-lock.json
+            git rebase --continue
+            ```
+
+            **For `package.json`**:
+            Accept BOTH sides. Keep all dependencies from both versions. If the same
+            dependency has different versions, use the HIGHER version. Then run
+            `npm install` to regenerate the lock file. `git add package.json package-lock.json`
+
+            **For `prisma/schema.prisma`**:
+            Accept BOTH sides (additive merge). Keep ALL models, enums, and relations
+            from both versions. Never remove a model that main has. After resolving:
+            ```
+            npx prisma validate
+            npx prisma format
+            git add prisma/schema.prisma
+            ```
+
+            **For `src/server/trpc/routers/root.ts`** (router index):
+            Accept BOTH sides. Keep all router imports and registrations from both versions.
+
+            **For `src/app/(platform)/layout.tsx`** or navigation files:
+            Accept BOTH sides. Keep all navigation items and layout elements from both.
+
+            **For `src/server/events/event-bus.ts`** or shared service files:
+            Accept BOTH sides. Keep all event types and handlers from both versions.
+
+            **For files YOU created** that don't exist in main:
+            Keep YOUR version: `git checkout --ours <file> && git add <file>`
+
+            **For ANY other conflict**:
+            Read both sides carefully. Keep ALL functionality from both. Never drop
+            code that main has. After resolving: `git add <file> && git rebase --continue`
+
+            **If rebase fails completely** (rare):
+            ```
+            git rebase --abort
+            git merge origin/main --no-edit
+            ```
+            Then resolve merge conflicts using the same rules above.
 
             Then push and create the PR:
             - Push your branch: `git push --force-with-lease origin <branch>`

@@ -95,7 +95,9 @@ jobs:
       - name: Trigger next story
         if: steps.chain.outputs.next_issue != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # CRITICAL: Must use PAT (not GITHUB_TOKEN) to trigger Claude workflow.
+          # GITHUB_TOKEN cannot trigger new workflow runs (GitHub anti-recursion).
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           NEXT_ISSUE="${{ steps.chain.outputs.next_issue }}"
           NEXT_STORY="${{ steps.chain.outputs.next_story }}"

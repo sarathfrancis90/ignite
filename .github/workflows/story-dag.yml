@@ -1,0 +1,261 @@
+name: DAG Story Dispatcher
+
+# Fires when a PR is merged. Reads story-dag.json to:
+# 1. Trigger the NEXT story in the same epic (sequential within epic)
+# 2. When an epic completes, find newly-ready epics and trigger their first stories
+# 3. Respect max_parallel limit for concurrent active stories
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  dispatch-next:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Extract closed issue number from PR body
+        id: extract
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Match "Closes #N", "Fixes #N", "Resolves #N" (case-insensitive)
+          ISSUE_NUM=$(echo "$PR_BODY" | grep -oiP '(closes|fixes|resolves)\s*#\K[0-9]+' | head -1)
+
+          # Fallback: check GitHub's linked closing issues API
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "No keyword match in PR body. Checking GitHub linked issues..."
+            ISSUE_NUM=$(gh pr view "$PR_NUMBER" --json closingIssuesReferences --jq '.closingIssuesReferences[0].number // empty' 2>/dev/null || echo "")
+          fi
+
+          echo "issue_number=$ISSUE_NUM" >> "$GITHUB_OUTPUT"
+          if [ -n "$ISSUE_NUM" ]; then
+            echo "Found linked issue: #$ISSUE_NUM"
+          else
+            echo "No linked issue found in PR body. DAG will not advance."
+          fi
+
+      - name: DAG dispatcher
+        if: steps.extract.outputs.issue_number != ''
+        id: dag
+        env:
+          # CRITICAL: Must use PAT (not GITHUB_TOKEN) to add labels.
+          # GITHUB_TOKEN cannot trigger new workflow runs (GitHub anti-recursion).
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUM="${{ steps.extract.outputs.issue_number }}"
+          DAG_FILE=".github/story-dag.json"
+
+          if [ ! -f "$DAG_FILE" ]; then
+            echo "story-dag.json not found. Skipping."
+            exit 0
+          fi
+
+          # ── Find the completed story's epic ──
+          STORY_EPIC=$(jq -r --argjson num "$ISSUE_NUM" '.stories[($num | tostring)].epic // empty' "$DAG_FILE")
+
+          if [ -z "$STORY_EPIC" ]; then
+            echo "Issue #$ISSUE_NUM is not in the story DAG. Skipping."
+            exit 0
+          fi
+
+          STORY_ID=$(jq -r --argjson num "$ISSUE_NUM" '.stories[($num | tostring)].id' "$DAG_FILE")
+          EPIC_NAME=$(jq -r --arg ep "$STORY_EPIC" '.epics[$ep].name' "$DAG_FILE")
+          echo "Completed: Story $STORY_ID (Epic $STORY_EPIC: $EPIC_NAME, Issue #$ISSUE_NUM)"
+
+          # ── Get epic's story list and find position ──
+          EPIC_STORIES=$(jq -r --arg ep "$STORY_EPIC" '.epics[$ep].stories | @json' "$DAG_FILE")
+          STORY_INDEX=$(echo "$EPIC_STORIES" | jq --argjson num "$ISSUE_NUM" 'to_entries[] | select(.value == $num) | .key')
+          EPIC_LENGTH=$(echo "$EPIC_STORIES" | jq 'length')
+          NEXT_INDEX=$((STORY_INDEX + 1))
+
+          TRIGGERED_ISSUES=""
+          TRIGGERED_COUNT=0
+
+          # ── Step 1: Trigger next story in same epic (if any) ──
+          if [ "$NEXT_INDEX" -lt "$EPIC_LENGTH" ]; then
+            NEXT_ISSUE=$(echo "$EPIC_STORIES" | jq ".[$NEXT_INDEX]")
+            NEXT_STORY_ID=$(jq -r --argjson num "$NEXT_ISSUE" '.stories[($num | tostring)].id' "$DAG_FILE")
+            NEXT_TITLE=$(jq -r --argjson num "$NEXT_ISSUE" '.stories[($num | tostring)].title' "$DAG_FILE")
+
+            echo "Next in epic: Story $NEXT_STORY_ID (#$NEXT_ISSUE) - $NEXT_TITLE"
+
+            gh issue edit "$NEXT_ISSUE" --remove-label "claude-code" 2>/dev/null || true
+            sleep 2
+            gh issue edit "$NEXT_ISSUE" --add-label "claude-code"
+
+            COMMENT_BODY="## DAG Chain: Next Story in Epic
+
+          Story **$STORY_ID** completed and merged (PR #${{ github.event.pull_request.number }}).
+
+          Triggering next story in **Epic $STORY_EPIC ($EPIC_NAME)**: **$NEXT_STORY_ID - $NEXT_TITLE**
+
+          Assigning to Claude for autonomous development."
+            gh issue comment "$NEXT_ISSUE" --body "$COMMENT_BODY"
+
+            TRIGGERED_ISSUES="$NEXT_ISSUE"
+            TRIGGERED_COUNT=1
+          else
+            echo "This was the LAST story in Epic $STORY_EPIC ($EPIC_NAME). Epic complete!"
+          fi
+
+          # ── Step 2: Check if any new epics are now ready ──
+          # An epic is "complete" if ALL its story issues are CLOSED
+          # An epic is "ready" if all depends_on epics are complete AND it hasn't started yet
+
+          # Batch fetch all issue states
+          ALL_ISSUES=$(gh issue list --state all --limit 200 --json number,state,labels 2>/dev/null || echo "[]")
+
+          # Build a map of epic completion status
+          COMPLETE_EPICS=""
+          for EPIC_ID in $(jq -r '.epics | keys[]' "$DAG_FILE"); do
+            EPIC_STORY_ISSUES=$(jq -r --arg ep "$EPIC_ID" '.epics[$ep].stories[]' "$DAG_FILE")
+            ALL_CLOSED=true
+
+            for S_ISSUE in $EPIC_STORY_ISSUES; do
+              STATE=$(echo "$ALL_ISSUES" | jq -r --argjson num "$S_ISSUE" '[.[] | select(.number == $num)][0].state // "OPEN"')
+              if [ "$STATE" != "CLOSED" ]; then
+                ALL_CLOSED=false
+                break
+              fi
+            done
+
+            if [ "$ALL_CLOSED" = true ]; then
+              COMPLETE_EPICS="$COMPLETE_EPICS $EPIC_ID"
+            fi
+          done
+
+          echo "Complete epics: $COMPLETE_EPICS"
+
+          # Find epics that are ready (all deps complete) and not yet started
+          MAX_PARALLEL=$(jq -r '.config.max_parallel' "$DAG_FILE")
+
+          # Count currently active stories (open issues with claude-code label)
+          ACTIVE_COUNT=$(echo "$ALL_ISSUES" | jq '[.[] | select(.state == "OPEN" and (.labels | map(.name) | any(. == "claude-code")))] | length')
+          # Include what we just triggered
+          ACTIVE_COUNT=$((ACTIVE_COUNT + TRIGGERED_COUNT))
+          echo "Currently active stories (including just triggered): $ACTIVE_COUNT"
+
+          for EPIC_ID in $(jq -r '.epics | keys[]' "$DAG_FILE"); do
+            # Skip if we've hit the parallel limit
+            if [ "$ACTIVE_COUNT" -ge "$MAX_PARALLEL" ]; then
+              echo "Parallel limit ($MAX_PARALLEL) reached. Stopping."
+              break
+            fi
+
+            # Skip already-complete epics
+            if echo "$COMPLETE_EPICS" | grep -qw "$EPIC_ID"; then
+              continue
+            fi
+
+            # Check if epic has already started (any story closed or has claude-code label)
+            EPIC_STARTED=false
+            FIRST_STORY=""
+            for S_ISSUE in $(jq -r --arg ep "$EPIC_ID" '.epics[$ep].stories[]' "$DAG_FILE"); do
+              STATE=$(echo "$ALL_ISSUES" | jq -r --argjson num "$S_ISSUE" '[.[] | select(.number == $num)][0].state // "OPEN"')
+              HAS_LABEL=$(echo "$ALL_ISSUES" | jq -r --argjson num "$S_ISSUE" '[.[] | select(.number == $num)][0].labels // [] | map(.name) | any(. == "claude-code")')
+
+              if [ "$STATE" = "CLOSED" ] || [ "$HAS_LABEL" = "true" ]; then
+                EPIC_STARTED=true
+                break
+              fi
+
+              if [ -z "$FIRST_STORY" ]; then
+                FIRST_STORY="$S_ISSUE"
+              fi
+            done
+
+            if [ "$EPIC_STARTED" = true ]; then
+              continue
+            fi
+
+            # Check if all dependencies are complete
+            DEPS_MET=true
+            for DEP_ID in $(jq -r --arg ep "$EPIC_ID" '.epics[$ep].depends_on[]' "$DAG_FILE"); do
+              if ! echo "$COMPLETE_EPICS" | grep -qw "$DEP_ID"; then
+                DEPS_MET=false
+                break
+              fi
+            done
+
+            if [ "$DEPS_MET" = true ] && [ -n "$FIRST_STORY" ]; then
+              FIRST_STORY_ID=$(jq -r --argjson num "$FIRST_STORY" '.stories[($num | tostring)].id' "$DAG_FILE")
+              FIRST_TITLE=$(jq -r --argjson num "$FIRST_STORY" '.stories[($num | tostring)].title' "$DAG_FILE")
+              EPIC_NAME_NEW=$(jq -r --arg ep "$EPIC_ID" '.epics[$ep].name' "$DAG_FILE")
+
+              echo "Epic $EPIC_ID ($EPIC_NAME_NEW) is now READY. Triggering first story: $FIRST_STORY_ID (#$FIRST_STORY)"
+
+              gh issue edit "$FIRST_STORY" --remove-label "claude-code" 2>/dev/null || true
+              sleep 2
+              gh issue edit "$FIRST_STORY" --add-label "claude-code"
+
+              COMMENT_BODY="## DAG Chain: New Epic Unlocked
+
+          All dependency epics for **Epic $EPIC_ID ($EPIC_NAME_NEW)** are now complete.
+
+          Starting first story: **$FIRST_STORY_ID - $FIRST_TITLE**
+
+          Assigning to Claude for autonomous development."
+              gh issue comment "$FIRST_STORY" --body "$COMMENT_BODY"
+
+              TRIGGERED_ISSUES="$TRIGGERED_ISSUES $FIRST_STORY"
+              TRIGGERED_COUNT=$((TRIGGERED_COUNT + 1))
+              ACTIVE_COUNT=$((ACTIVE_COUNT + 1))
+            fi
+          done
+
+          echo "triggered_issues=$TRIGGERED_ISSUES" >> "$GITHUB_OUTPUT"
+          echo "triggered_count=$TRIGGERED_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$TRIGGERED_COUNT" -eq 0 ]; then
+            # Check if ALL stories across ALL epics are done
+            TOTAL_STORIES=$(jq '.stories | length' "$DAG_FILE")
+            CLOSED_STORIES=$(echo "$ALL_ISSUES" | jq --argjson issues "$(jq '[.stories | keys[] | tonumber]' "$DAG_FILE")" '[.[] | select(.state == "CLOSED" and (.number as $n | $issues | any(. == $n)))] | length')
+
+            if [ "$CLOSED_STORIES" -ge "$TOTAL_STORIES" ]; then
+              echo "ALL $TOTAL_STORIES STORIES COMPLETE! Project finished!"
+              echo "all_complete=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "No new stories triggered this cycle. $CLOSED_STORIES/$TOTAL_STORIES complete."
+              echo "all_complete=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "all_complete=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update Kanban for completed story
+        if: steps.extract.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: |
+          set +e
+          ISSUE_NUM="${{ steps.extract.outputs.issue_number }}"
+          if [ -f ".github/scripts/update-kanban.sh" ]; then
+            chmod +x .github/scripts/update-kanban.sh
+            GH_TOKEN="${PROJECT_TOKEN:-$GH_TOKEN}" .github/scripts/update-kanban.sh --issue "$ISSUE_NUM" --status "Done" || true
+          fi
+
+      - name: Post project completion celebration
+        if: steps.dag.outputs.all_complete == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUM="${{ steps.extract.outputs.issue_number }}"
+          gh issue comment "$ISSUE_NUM" --body "## All Stories Complete!
+
+          All 78 stories across 16 epics have been implemented via DAG-based parallel execution.
+
+          Time to do a full platform review!" || true
