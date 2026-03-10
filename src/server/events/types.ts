@@ -26,6 +26,14 @@ export interface EventMap {
   "orgUnit.deleted": EventPayload;
   "orgUnit.userAssigned": EventPayload;
   "orgUnit.userRemoved": EventPayload;
+  "user.adminCreated": EventPayload;
+  "user.adminUpdated": EventPayload;
+  "user.statusChanged": EventPayload;
+  "group.created": EventPayload;
+  "group.updated": EventPayload;
+  "group.deleted": EventPayload;
+  "group.memberAdded": EventPayload;
+  "group.memberRemoved": EventPayload;
 }
 
 export type EventName = keyof EventMap;
