@@ -29,13 +29,14 @@ test.describe("Smoke Tests", () => {
     await page.goto("/login");
     // Should either show the real login form or ComingSoon — never 404
     await expect(page.locator("body")).not.toContainText("404");
-    await expect(page.locator("h2")).toBeVisible();
+    // CardTitle renders as h3; accept h2 or h3 for flexibility
+    await expect(page.locator("h2, h3").first()).toBeVisible();
   });
 
   test("register page loads", async ({ page }) => {
     await page.goto("/register");
     await expect(page.locator("body")).not.toContainText("404");
-    await expect(page.locator("h2")).toBeVisible();
+    await expect(page.locator("h2, h3").first()).toBeVisible();
   });
 
   test("dashboard page loads (ComingSoon or real)", async ({ page }) => {
