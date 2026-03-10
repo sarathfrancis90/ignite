@@ -18,6 +18,9 @@ export interface EventMap {
   "idea.submitted": EventPayload;
   "idea.updated": EventPayload;
   "idea.statusChanged": EventPayload;
+  "idea.coachQualified": EventPayload;
+  "idea.archived": EventPayload;
+  "idea.unarchived": EventPayload;
   "idea.voted": EventPayload;
   "idea.deleted": EventPayload;
   "user.registered": EventPayload;

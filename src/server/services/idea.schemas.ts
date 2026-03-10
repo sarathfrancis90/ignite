@@ -60,6 +60,44 @@ export const ideaDeleteInput = z.object({
   id: z.string(),
 });
 
+export const ideaTransitionInput = z.object({
+  id: z.string(),
+  targetStatus: z.enum([
+    "DRAFT",
+    "QUALIFICATION",
+    "COMMUNITY_DISCUSSION",
+    "HOT",
+    "EVALUATION",
+    "SELECTED_IMPLEMENTATION",
+    "IMPLEMENTED",
+    "ARCHIVED",
+  ]),
+});
+
+export const ideaArchiveInput = z.object({
+  id: z.string(),
+  reason: z.string().max(1000).optional(),
+});
+
+export const ideaUnarchiveInput = z.object({
+  id: z.string(),
+});
+
+export const coachQualifyInput = z.object({
+  ideaId: z.string(),
+  decision: z.enum(["APPROVED", "REJECTED", "CHANGES_REQUESTED"]),
+  feedback: z.string().max(5000).optional(),
+  score: z.number().int().min(1).max(10).optional(),
+});
+
+export const ideaGetTransitionsInput = z.object({
+  id: z.string(),
+});
+
 export type IdeaCreateInput = z.infer<typeof ideaCreateInput>;
 export type IdeaUpdateInput = z.infer<typeof ideaUpdateInput>;
 export type IdeaListInput = z.infer<typeof ideaListInput>;
+export type IdeaTransitionInput = z.infer<typeof ideaTransitionInput>;
+export type IdeaArchiveInput = z.infer<typeof ideaArchiveInput>;
+export type IdeaUnarchiveInput = z.infer<typeof ideaUnarchiveInput>;
+export type CoachQualifyInput = z.infer<typeof coachQualifyInput>;

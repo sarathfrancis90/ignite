@@ -6,6 +6,9 @@ vi.mock("@/server/lib/prisma", () => ({
     campaignMember: {
       count: vi.fn(),
     },
+    idea: {
+      count: vi.fn(),
+    },
   },
 }));
 
@@ -27,6 +30,7 @@ vi.mock("@/server/lib/logger", () => ({
 const { prisma } = await import("@/server/lib/prisma");
 
 const campaignMemberCount = prisma.campaignMember.count as unknown as Mock;
+const ideaCount = (prisma as unknown as { idea: { count: Mock } }).idea.count;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -61,13 +65,27 @@ describe("transition-engine", () => {
       expect(failures[0]?.message).toContain("seeding team");
     });
 
-    it("returns empty array for SUBMISSION -> DISCUSSION_VOTING (idea guard passes by default)", async () => {
+    it("returns empty array for SUBMISSION -> DISCUSSION_VOTING when ideas exist", async () => {
+      ideaCount.mockResolvedValue(3);
+
       const failures = await evaluateTransitionGuards(
         "campaign-1",
         "SUBMISSION",
         "DISCUSSION_VOTING",
       );
       expect(failures).toEqual([]);
+    });
+
+    it("returns failure for SUBMISSION -> DISCUSSION_VOTING when no ideas exist", async () => {
+      ideaCount.mockResolvedValue(0);
+
+      const failures = await evaluateTransitionGuards(
+        "campaign-1",
+        "SUBMISSION",
+        "DISCUSSION_VOTING",
+      );
+      expect(failures).toHaveLength(1);
+      expect(failures[0]?.guard).toBe("HAS_AT_LEAST_ONE_IDEA");
     });
 
     it("returns empty array for EVALUATION -> CLOSED (evaluation guard passes by default)", async () => {

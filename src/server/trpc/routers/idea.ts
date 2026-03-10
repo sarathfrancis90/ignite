@@ -8,12 +8,22 @@ import {
   ideaGetByIdInput,
   ideaSubmitInput,
   ideaDeleteInput,
+  ideaTransitionInput,
+  ideaArchiveInput,
+  ideaUnarchiveInput,
+  coachQualifyInput,
+  ideaGetTransitionsInput,
   listIdeas,
   getIdeaById,
   createIdea,
   updateIdea,
   submitIdea,
   deleteIdea,
+  transitionIdea,
+  archiveIdea,
+  unarchiveIdea,
+  coachQualify,
+  getIdeaTransitions,
   IdeaServiceError,
 } from "@/server/services/idea.service";
 
@@ -21,11 +31,18 @@ function handleIdeaError(error: unknown): never {
   if (error instanceof TRPCError) throw error;
 
   if (error instanceof IdeaServiceError) {
-    const codeMap: Record<string, "NOT_FOUND" | "BAD_REQUEST" | "FORBIDDEN"> = {
+    const codeMap: Record<
+      string,
+      "NOT_FOUND" | "BAD_REQUEST" | "FORBIDDEN" | "PRECONDITION_FAILED"
+    > = {
       IDEA_NOT_FOUND: "NOT_FOUND",
       CAMPAIGN_NOT_FOUND: "NOT_FOUND",
       CAMPAIGN_NOT_ACCEPTING: "BAD_REQUEST",
       INVALID_STATUS: "BAD_REQUEST",
+      INVALID_TRANSITION: "BAD_REQUEST",
+      ALREADY_ARCHIVED: "BAD_REQUEST",
+      NO_PREVIOUS_STATUS: "BAD_REQUEST",
+      GUARD_FAILED: "PRECONDITION_FAILED",
       NOT_AUTHORIZED: "FORBIDDEN",
     };
 
@@ -96,6 +113,61 @@ export const ideaRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       try {
         return await deleteIdea(input.id, ctx.session.user.id);
+      } catch (error) {
+        handleIdeaError(error);
+      }
+    }),
+
+  transition: protectedProcedure
+    .use(requirePermission(Action.IDEA_TRANSITION))
+    .input(ideaTransitionInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await transitionIdea(input, ctx.session.user.id);
+      } catch (error) {
+        handleIdeaError(error);
+      }
+    }),
+
+  archive: protectedProcedure
+    .use(requirePermission(Action.IDEA_MODERATE))
+    .input(ideaArchiveInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await archiveIdea(input, ctx.session.user.id);
+      } catch (error) {
+        handleIdeaError(error);
+      }
+    }),
+
+  unarchive: protectedProcedure
+    .use(requirePermission(Action.IDEA_MODERATE))
+    .input(ideaUnarchiveInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await unarchiveIdea(input.id, ctx.session.user.id);
+      } catch (error) {
+        handleIdeaError(error);
+      }
+    }),
+
+  coachQualify: protectedProcedure
+    .use(requirePermission(Action.IDEA_TRANSITION))
+    .input(coachQualifyInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await coachQualify(input, ctx.session.user.id);
+      } catch (error) {
+        handleIdeaError(error);
+      }
+    }),
+
+  getTransitions: protectedProcedure
+    .use(requirePermission(Action.IDEA_READ))
+    .input(ideaGetTransitionsInput)
+    .query(async ({ input }) => {
+      try {
+        return await getIdeaTransitions(input.id);
       } catch (error) {
         handleIdeaError(error);
       }

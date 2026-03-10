@@ -52,8 +52,7 @@ async function checkGuard(campaignId: string, guardId: TransitionGuardId): Promi
     case "SEEDING_TEAM_ASSIGNED":
       return checkSeedingTeamAssigned(campaignId);
     case "HAS_AT_LEAST_ONE_IDEA":
-      // Idea model not yet implemented (Story 3.x) — guard passes by default
-      return true;
+      return checkHasAtLeastOneIdea(campaignId);
     case "ALL_EVALUATIONS_COMPLETE":
       // EvaluationSession model not yet implemented (Story 5.x) — guard passes by default
       return true;
@@ -73,4 +72,14 @@ async function checkSeedingTeamAssigned(campaignId: string): Promise<boolean> {
     },
   });
   return seeders > 0;
+}
+
+async function checkHasAtLeastOneIdea(campaignId: string): Promise<boolean> {
+  const ideaCount = await prisma.idea.count({
+    where: {
+      campaignId,
+      status: { not: "DRAFT" },
+    },
+  });
+  return ideaCount > 0;
 }

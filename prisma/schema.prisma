@@ -52,6 +52,7 @@ model User {
   spaceMemberships    InnovationSpaceMembership[]
   contributedIdeas    Idea[]                      @relation("IdeaContributor")
   coAuthoredIdeas     IdeaCoAuthor[]
+  coachQualifications CoachQualification[]        @relation("CoachQualifier")
 
   @@map("users")
 }
@@ -513,7 +514,8 @@ model Idea {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  coAuthors IdeaCoAuthor[]
+  coAuthors      IdeaCoAuthor[]
+  qualifications CoachQualification[]
 
   @@index([campaignId])
   @@index([contributorId])
@@ -535,4 +537,32 @@ model IdeaCoAuthor {
   @@index([ideaId])
   @@index([userId])
   @@map("idea_co_authors")
+}
+
+// ── Coach Qualification ─────────────────────────────────────
+
+enum QualificationDecision {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+
+  @@map("qualification_decision")
+}
+
+model CoachQualification {
+  id       String                @id @default(cuid())
+  ideaId   String                @map("idea_id")
+  coachId  String                @map("coach_id")
+  decision QualificationDecision
+  feedback String?               @db.Text
+  score    Int?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  idea  Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  coach User @relation("CoachQualifier", fields: [coachId], references: [id])
+
+  @@index([ideaId])
+  @@index([coachId])
+  @@map("coach_qualifications")
 }
