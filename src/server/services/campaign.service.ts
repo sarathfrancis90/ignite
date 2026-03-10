@@ -206,6 +206,14 @@ export async function updateCampaign(input: CampaignUpdateInput, updatedById: st
   if (updateData.isFeatured !== undefined) data.isFeatured = updateData.isFeatured;
   if (updateData.isShowOnStartPage !== undefined)
     data.isShowOnStartPage = updateData.isShowOnStartPage;
+  if (updateData.hasIdeaCoach !== undefined) data.hasIdeaCoach = updateData.hasIdeaCoach;
+  if (updateData.hasQualificationPhase !== undefined)
+    data.hasQualificationPhase = updateData.hasQualificationPhase;
+  if (updateData.coachAssignmentMode !== undefined)
+    data.coachAssignmentMode = updateData.coachAssignmentMode;
+  if (updateData.ideaCategories !== undefined)
+    data.ideaCategories = updateData.ideaCategories as Prisma.InputJsonValue;
+  if (updateData.audienceType !== undefined) data.audienceType = updateData.audienceType;
   if (updateData.graduationVisitors !== undefined)
     data.graduationVisitors = updateData.graduationVisitors;
   if (updateData.graduationCommenters !== undefined)

@@ -46,6 +46,7 @@ model User {
   userGroupMembership UserGroupMembership[]
   orgUnitAssignments  UserOrgUnit[]
   createdCampaigns    Campaign[] @relation("CampaignCreatedBy")
+  campaignMemberships CampaignMember[]
   spaceMemberships    InnovationSpaceMembership[]
 
   @@map("users")
@@ -97,10 +98,20 @@ enum ResourceRoleType {
   CAMPAIGN_MANAGER
   CAMPAIGN_COACH
   CAMPAIGN_CONTRIBUTOR
+  CAMPAIGN_MODERATOR
+  CAMPAIGN_EVALUATOR
+  CAMPAIGN_SEEDER
   CHANNEL_MANAGER
   CHANNEL_CONTRIBUTOR
 
   @@map("resource_role_type")
+}
+
+enum CoachAssignmentMode {
+  GLOBAL
+  PER_CATEGORY
+
+  @@map("coach_assignment_mode")
 }
 
 model ResourceRole {
@@ -290,11 +301,17 @@ model Campaign {
   hasSeedingPhase        Boolean @default(true)  @map("has_seeding_phase")
   hasDiscussionPhase     Boolean @default(true)  @map("has_discussion_phase")
   hasCommunityGraduation Boolean @default(true)  @map("has_community_graduation")
+  hasQualificationPhase  Boolean @default(false) @map("has_qualification_phase")
   hasVoting              Boolean @default(false) @map("has_voting")
   hasLikes               Boolean @default(true)  @map("has_likes")
+  hasIdeaCoach           Boolean @default(false) @map("has_idea_coach")
   isConfidentialAllowed  Boolean @default(false) @map("is_confidential_allowed")
   isFeatured             Boolean @default(false) @map("is_featured")
   isShowOnStartPage      Boolean @default(true)  @map("is_show_on_start_page")
+
+  // Idea Coach settings
+  coachAssignmentMode    CoachAssignmentMode @default(GLOBAL) @map("coach_assignment_mode")
+  ideaCategories         Json?               @map("idea_categories")
 
   // Community graduation thresholds
   graduationVisitors     Int   @default(10) @map("graduation_visitors")
@@ -316,9 +333,28 @@ model Campaign {
 
   // Relations
   createdBy User @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  members   CampaignMember[]
 
   @@index([status])
   @@index([submissionType])
   @@index([createdById])
   @@map("campaigns")
+}
+
+model CampaignMember {
+  id          String           @id @default(cuid())
+  campaignId  String           @map("campaign_id")
+  userId      String           @map("user_id")
+  role        ResourceRoleType
+  category    String?
+  assignedAt  DateTime         @default(now()) @map("assigned_at")
+  assignedBy  String?          @map("assigned_by")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId, role])
+  @@index([campaignId])
+  @@index([userId])
+  @@map("campaign_members")
 }

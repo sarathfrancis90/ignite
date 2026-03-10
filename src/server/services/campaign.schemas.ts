@@ -26,11 +26,18 @@ export const campaignUpdateInput = z.object({
   hasSeedingPhase: z.boolean().optional(),
   hasDiscussionPhase: z.boolean().optional(),
   hasCommunityGraduation: z.boolean().optional(),
+  hasQualificationPhase: z.boolean().optional(),
   hasVoting: z.boolean().optional(),
   hasLikes: z.boolean().optional(),
+  hasIdeaCoach: z.boolean().optional(),
   isConfidentialAllowed: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
   isShowOnStartPage: z.boolean().optional(),
+  coachAssignmentMode: z.enum(["GLOBAL", "PER_CATEGORY"]).optional(),
+  ideaCategories: z.unknown().optional(),
+  audienceType: z
+    .enum(["ALL_INTERNAL", "SELECTED_INTERNAL", "ALL_EXTERNAL", "SELECTED_EXTERNAL", "MIXED"])
+    .optional(),
   graduationVisitors: z.number().int().min(0).optional(),
   graduationCommenters: z.number().int().min(0).optional(),
   graduationLikes: z.number().int().min(0).optional(),

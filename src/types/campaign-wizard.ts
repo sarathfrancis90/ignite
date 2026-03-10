@@ -52,9 +52,9 @@ export const customFieldsArraySchema = z.array(customFieldSchema);
 export const WIZARD_STEPS = [
   { id: 1, label: "Description", key: "description" },
   { id: 2, label: "Submission Form", key: "submissionForm" },
-  { id: 3, label: "Phases & Workflow", key: "phases" },
-  { id: 4, label: "Audience & Roles", key: "audience" },
-  { id: 5, label: "Review & Launch", key: "review" },
+  { id: 3, label: "Idea Coach", key: "ideaCoach" },
+  { id: 4, label: "Community", key: "community" },
+  { id: 5, label: "Settings", key: "settings" },
 ] as const;
 
 export type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];
@@ -104,3 +104,62 @@ export const stepSubmissionFormSchema = z.object({
 });
 
 export type StepSubmissionFormData = z.infer<typeof stepSubmissionFormSchema>;
+
+// ── Idea Category Schema ──────────────────────────────────
+
+export const ideaCategorySchema = z.object({
+  id: z.string(),
+  name: z.string().min(1, "Category name is required").max(200),
+  coachId: z.string().optional(),
+});
+
+export type IdeaCategory = z.infer<typeof ideaCategorySchema>;
+
+// ── Step 3 Idea Coach Data ──────────────────────────────────
+
+export const stepIdeaCoachSchema = z.object({
+  hasIdeaCoach: z.boolean(),
+  coachAssignmentMode: z.enum(["GLOBAL", "PER_CATEGORY"]),
+  globalCoachId: z.string().optional(),
+  categories: z.array(ideaCategorySchema),
+});
+
+export type StepIdeaCoachData = z.infer<typeof stepIdeaCoachSchema>;
+
+// ── Step 4 Community Data ────────────────────────────────────
+
+export const stepCommunitySchema = z.object({
+  moderatorIds: z.array(z.string()),
+  evaluatorIds: z.array(z.string()),
+  seederIds: z.array(z.string()),
+  audienceType: z.enum(["ALL_INTERNAL", "SELECTED_INTERNAL"]),
+});
+
+export type StepCommunityData = z.infer<typeof stepCommunitySchema>;
+
+// ── Voting Criterion Schema ──────────────────────────────────
+
+export const votingCriterionSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1, "Label is required").max(200),
+  weight: z.number().min(0).max(100),
+});
+
+export type VotingCriterion = z.infer<typeof votingCriterionSchema>;
+
+// ── Step 5 Settings Data ─────────────────────────────────────
+
+export const stepSettingsSchema = z.object({
+  hasQualificationPhase: z.boolean(),
+  hasVoting: z.boolean(),
+  votingCriteria: z.array(votingCriterionSchema),
+  graduationVisitors: z.number().int().min(0),
+  graduationCommenters: z.number().int().min(0),
+  graduationVoters: z.number().int().min(0),
+  graduationVotingLevel: z.number().min(0),
+  graduationDaysInStatus: z.number().int().min(0),
+  isConfidentialAllowed: z.boolean(),
+  isShowOnStartPage: z.boolean(),
+});
+
+export type StepSettingsData = z.infer<typeof stepSettingsSchema>;

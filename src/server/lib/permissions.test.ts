@@ -169,7 +169,14 @@ describe("permissions", () => {
 
   describe("RESOURCE_ROLE_PERMISSIONS structure", () => {
     it("all campaign roles include CAMPAIGN_READ", () => {
-      for (const role of ["CAMPAIGN_MANAGER", "CAMPAIGN_COACH", "CAMPAIGN_CONTRIBUTOR"] as const) {
+      for (const role of [
+        "CAMPAIGN_MANAGER",
+        "CAMPAIGN_COACH",
+        "CAMPAIGN_CONTRIBUTOR",
+        "CAMPAIGN_MODERATOR",
+        "CAMPAIGN_EVALUATOR",
+        "CAMPAIGN_SEEDER",
+      ] as const) {
         expect(RESOURCE_ROLE_PERMISSIONS[role]).toContain(Action.CAMPAIGN_READ);
       }
     });

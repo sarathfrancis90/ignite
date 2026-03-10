@@ -14,6 +14,14 @@ import {
   transitionCampaign,
   CampaignServiceError,
 } from "@/server/services/campaign.service";
+import {
+  campaignMemberSetInput,
+  campaignMemberListInput,
+  userSearchInput,
+  searchUsers,
+  setCampaignMembers,
+  listCampaignMembers,
+} from "@/server/services/campaign-member.service";
 
 function handleCampaignError(error: unknown): never {
   if (error instanceof TRPCError) throw error;
@@ -83,5 +91,33 @@ export const campaignRouter = createTRPCRouter({
       } catch (error) {
         handleCampaignError(error);
       }
+    }),
+
+  searchUsers: protectedProcedure
+    .use(requirePermission(Action.CAMPAIGN_READ))
+    .input(userSearchInput)
+    .query(async ({ input }) => {
+      return searchUsers(input);
+    }),
+
+  setMembers: protectedProcedure
+    .use(
+      requirePermission<{ campaignId: string }>(
+        Action.CAMPAIGN_ASSIGN_ROLES,
+        (input) => input.campaignId,
+      ),
+    )
+    .input(campaignMemberSetInput)
+    .mutation(async ({ ctx, input }) => {
+      return setCampaignMembers(input, ctx.session.user.id);
+    }),
+
+  listMembers: protectedProcedure
+    .use(
+      requirePermission<{ campaignId: string }>(Action.CAMPAIGN_READ, (input) => input.campaignId),
+    )
+    .input(campaignMemberListInput)
+    .query(async ({ input }) => {
+      return listCampaignMembers(input);
     }),
 });
