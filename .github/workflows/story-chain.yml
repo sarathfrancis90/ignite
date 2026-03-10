@@ -22,8 +22,9 @@ jobs:
 
       - name: Extract closed issue number from PR body
         id: extract
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          PR_BODY="${{ github.event.pull_request.body }}"
           # Match "Closes #N", "Fixes #N", "Resolves #N" (case-insensitive)
           ISSUE_NUM=$(echo "$PR_BODY" | grep -oiP '(closes|fixes|resolves)\s+#\K[0-9]+' | head -1)
           echo "issue_number=$ISSUE_NUM" >> "$GITHUB_OUTPUT"
