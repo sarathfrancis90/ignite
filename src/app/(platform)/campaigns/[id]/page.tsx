@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Lightbulb, BarChart3, Settings, LayoutDashboard, MessageSquare } from "lucide-react";
+import Link from "next/link";
+import { Lightbulb, BarChart3, Settings, LayoutDashboard, MessageSquare, Eye } from "lucide-react";
 import { CampaignHeader } from "@/components/campaigns/CampaignHeader";
 import { CampaignLifecycleBar } from "@/components/campaigns/CampaignLifecycleBar";
 import { CampaignPhaseControls } from "@/components/campaigns/CampaignPhaseControls";
@@ -76,6 +77,13 @@ export default function CampaignDetailPage() {
               </button>
             );
           })}
+          <Link
+            href={`/campaigns/${campaign.id}/sponsor`}
+            className="flex items-center gap-2 border-b-2 border-transparent px-1 py-3 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700"
+          >
+            <Eye className="h-4 w-4" />
+            Sponsor View
+          </Link>
         </nav>
       </div>
 

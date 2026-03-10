@@ -1,10 +1,13 @@
 "use client";
 
+import * as React from "react";
 import Image from "next/image";
-import { Calendar, User, ArrowLeft } from "lucide-react";
+import { Calendar, User, ArrowLeft, Copy } from "lucide-react";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { trpc } from "@/lib/trpc";
 
 interface CampaignHeaderProps {
   campaign: {
@@ -26,6 +29,22 @@ interface CampaignHeaderProps {
 }
 
 export function CampaignHeader({ campaign }: CampaignHeaderProps) {
+  const router = useRouter();
+  const utils = trpc.useUtils();
+  const copyMutation = trpc.campaign.copy.useMutation();
+
+  const handleCopy = () => {
+    copyMutation.mutate(
+      { sourceCampaignId: campaign.id, title: `${campaign.title} (Copy)` },
+      {
+        onSuccess: (data: { id: string }) => {
+          void utils.campaign.list.invalidate();
+          router.push(`/campaigns/${data.id}`);
+        },
+      },
+    );
+  };
+
   return (
     <div>
       <div className="mb-4">
@@ -68,14 +87,20 @@ export function CampaignHeader({ campaign }: CampaignHeaderProps) {
             )}
           </div>
         </div>
-        {campaign.status === "DRAFT" && (
-          <Link
-            href={`/campaigns/${campaign.id}/edit`}
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Edit Campaign
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleCopy} disabled={copyMutation.isPending}>
+            <Copy className="mr-2 h-4 w-4" />
+            {copyMutation.isPending ? "Copying..." : "Copy Campaign"}
+          </Button>
+          {campaign.status === "DRAFT" && (
+            <Link
+              href={`/campaigns/${campaign.id}/edit`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Edit Campaign
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );

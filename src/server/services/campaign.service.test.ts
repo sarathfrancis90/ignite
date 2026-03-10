@@ -7,24 +7,43 @@ import {
   transitionCampaign,
   getCampaignTransitions,
   revertCampaignPhase,
+  copyCampaign,
+  getSponsorView,
   CampaignServiceError,
   campaignCreateInput,
   campaignListInput,
+  campaignCopyInput,
 } from "./campaign.service";
 
-vi.mock("@/server/lib/prisma", () => ({
-  prisma: {
-    campaign: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
+vi.mock("@/server/lib/prisma", () => {
+  const campaign = {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
+  const campaignMember = {
+    count: vi.fn(),
+    createMany: vi.fn(),
+  };
+  return {
+    prisma: {
+      campaign,
+      campaignMember,
+      campaignKpiSnapshot: {
+        findFirst: vi.fn(),
+      },
+      $transaction: vi.fn(
+        (
+          fn: (tx: {
+            campaign: typeof campaign;
+            campaignMember: typeof campaignMember;
+          }) => Promise<unknown>,
+        ) => fn({ campaign, campaignMember }),
+      ),
     },
-    campaignMember: {
-      count: vi.fn(),
-    },
-  },
-}));
+  };
+});
 
 vi.mock("@/server/lib/logger", () => ({
   logger: {
@@ -515,6 +534,141 @@ describe("campaign.service", () => {
     });
   });
 
+  describe("copyCampaign", () => {
+    it("creates a new DRAFT campaign from source", async () => {
+      campaignFindUnique.mockResolvedValue({ ...mockCampaign, members: [] });
+      const copiedCampaign = {
+        ...mockCampaign,
+        id: "campaign-2",
+        title: "Copied Campaign",
+        createdById: "user-2",
+      };
+      campaignCreate.mockResolvedValue(copiedCampaign);
+
+      const result = await copyCampaign(
+        { sourceCampaignId: "campaign-1", title: "Copied Campaign" },
+        "user-2",
+      );
+
+      expect(result.id).toBe("campaign-2");
+      expect(result.title).toBe("Copied Campaign");
+    });
+
+    it("copies feature toggles and settings from source", async () => {
+      const sourceWithSettings = {
+        ...mockCampaign,
+        hasSeedingPhase: false,
+        hasVoting: true,
+        votingCriteria: { criteria: ["impact"] },
+        customFields: [{ name: "field1" }],
+        members: [],
+      };
+      campaignFindUnique.mockResolvedValue(sourceWithSettings);
+      campaignCreate.mockResolvedValue({
+        ...sourceWithSettings,
+        id: "campaign-2",
+        title: "Copied",
+      });
+
+      await copyCampaign({ sourceCampaignId: "campaign-1", title: "Copied" }, "user-2");
+
+      expect(campaignCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            hasSeedingPhase: false,
+            hasVoting: true,
+            votingCriteria: { criteria: ["impact"] },
+            customFields: [{ name: "field1" }],
+            status: "DRAFT",
+          }),
+        }),
+      );
+    });
+
+    it("emits campaign.copied event", async () => {
+      campaignFindUnique.mockResolvedValue({ ...mockCampaign, members: [] });
+      campaignCreate.mockResolvedValue({
+        ...mockCampaign,
+        id: "campaign-2",
+        title: "Copied",
+      });
+
+      await copyCampaign({ sourceCampaignId: "campaign-1", title: "Copied" }, "user-2");
+
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        "campaign.copied",
+        expect.objectContaining({
+          entity: "campaign",
+          entityId: "campaign-2",
+          actor: "user-2",
+          metadata: expect.objectContaining({
+            sourceCampaignId: "campaign-1",
+          }),
+        }),
+      );
+    });
+
+    it("throws CAMPAIGN_NOT_FOUND when source does not exist", async () => {
+      campaignFindUnique.mockResolvedValue(null);
+
+      await expect(
+        copyCampaign({ sourceCampaignId: "nonexistent", title: "X" }, "user-1"),
+      ).rejects.toThrow("Source campaign not found");
+    });
+  });
+
+  describe("getSponsorView", () => {
+    it("returns campaign with sponsor info and KPI summary", async () => {
+      campaignFindUnique.mockResolvedValue({
+        ...mockCampaign,
+        members: [
+          {
+            id: "member-1",
+            role: "CAMPAIGN_SPONSOR",
+            user: { id: "user-3", name: "Sponsor", email: "sponsor@example.com", image: null },
+            assignedAt: new Date("2026-01-01"),
+          },
+        ],
+        kpiSnapshots: [
+          {
+            ideasSubmitted: 10,
+            totalParticipants: 50,
+            totalComments: 30,
+            totalVotes: 100,
+            ideasSelected: 3,
+          },
+        ],
+      });
+
+      const result = await getSponsorView({ campaignId: "campaign-1" });
+
+      expect(result.id).toBe("campaign-1");
+      expect(result.sponsors).toHaveLength(1);
+      expect(result.kpiSummary?.ideasSubmitted).toBe(10);
+      expect(result.kpiSummary?.totalParticipants).toBe(50);
+    });
+
+    it("returns null kpiSummary when no snapshot exists", async () => {
+      campaignFindUnique.mockResolvedValue({
+        ...mockCampaign,
+        members: [],
+        kpiSnapshots: [],
+      });
+
+      const result = await getSponsorView({ campaignId: "campaign-1" });
+
+      expect(result.kpiSummary).toBeNull();
+    });
+
+    it("throws CAMPAIGN_NOT_FOUND when campaign does not exist", async () => {
+      campaignFindUnique.mockResolvedValue(null);
+
+      await expect(getSponsorView({ campaignId: "nonexistent" })).rejects.toThrow(
+        "Campaign not found",
+      );
+    });
+  });
+
   describe("schema validation", () => {
     it("validates campaignCreateInput", () => {
       const valid = campaignCreateInput.safeParse({
@@ -536,6 +690,22 @@ describe("campaign.service", () => {
       if (result.success) {
         expect(result.data.limit).toBe(20);
       }
+    });
+
+    it("validates campaignCopyInput", () => {
+      const valid = campaignCopyInput.safeParse({
+        sourceCampaignId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        title: "Copied Campaign",
+      });
+      expect(valid.success).toBe(true);
+    });
+
+    it("rejects campaignCopyInput without cuid", () => {
+      const invalid = campaignCopyInput.safeParse({
+        sourceCampaignId: "not-a-cuid",
+        title: "Copied",
+      });
+      expect(invalid.success).toBe(false);
     });
   });
 });
