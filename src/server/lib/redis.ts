@@ -1,6 +1,6 @@
 import { logger } from "./logger";
 
-const REDIS_AVAILABLE = false;
+const REDIS_AVAILABLE = Boolean(process.env.REDIS_URL);
 
 const childLogger = logger.child({ service: "redis" });
 
@@ -76,7 +76,8 @@ export async function cacheDelPattern(pattern: string): Promise<void> {
     return;
   }
 
-  const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp("^" + escaped.replace(/\*/g, ".*") + "$");
   for (const key of memoryCache.keys()) {
     if (regex.test(key)) {
       memoryCache.delete(key);

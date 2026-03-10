@@ -44,6 +44,8 @@ model User {
   accounts            Account[]
   sessions            Session[]
   userGroupMembership UserGroupMembership[]
+  resourceRoles       ResourceRole[] @relation("ResourceRoleUser")
+  assignedRoles       ResourceRole[] @relation("ResourceRoleAssigner")
 
   @@map("users")
 }
@@ -100,14 +102,24 @@ enum ResourceRoleType {
   @@map("resource_role_type")
 }
 
+enum ResourceType {
+  CAMPAIGN
+  CHANNEL
+
+  @@map("resource_type_enum")
+}
+
 model ResourceRole {
-  id          String           @id @default(cuid())
-  userId      String           @map("user_id")
-  resourceId  String           @map("resource_id")
-  resourceType String          @map("resource_type") // "campaign" or "channel"
-  role        ResourceRoleType
-  assignedAt  DateTime         @default(now()) @map("assigned_at")
-  assignedBy  String?          @map("assigned_by")
+  id           String           @id @default(cuid())
+  userId       String           @map("user_id")
+  resourceId   String           @map("resource_id")
+  resourceType ResourceType     @map("resource_type")
+  role         ResourceRoleType
+  assignedAt   DateTime         @default(now()) @map("assigned_at")
+  assignedBy   String?          @map("assigned_by")
+
+  user         User             @relation("ResourceRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  assigner     User?            @relation("ResourceRoleAssigner", fields: [assignedBy], references: [id], onDelete: SetNull)
 
   @@unique([userId, resourceId, role])
   @@index([userId])

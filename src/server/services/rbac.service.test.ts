@@ -233,11 +233,11 @@ describe("rbac.service", () => {
         id: "role-1",
         userId: "user-1",
         resourceId: "campaign-1",
-        resourceType: "campaign",
+        resourceType: "CAMPAIGN",
         role: "CAMPAIGN_MANAGER",
       });
 
-      await assignResourceRole("user-1", "campaign-1", "campaign", "CAMPAIGN_MANAGER", "admin-1");
+      await assignResourceRole("user-1", "campaign-1", "CAMPAIGN", "CAMPAIGN_MANAGER", "admin-1");
 
       expect(resourceRoleUpsert).toHaveBeenCalledWith({
         where: {
@@ -250,7 +250,7 @@ describe("rbac.service", () => {
         create: {
           userId: "user-1",
           resourceId: "campaign-1",
-          resourceType: "campaign",
+          resourceType: "CAMPAIGN",
           role: "CAMPAIGN_MANAGER",
           assignedBy: "admin-1",
         },
@@ -263,7 +263,7 @@ describe("rbac.service", () => {
     it("emits rbac.roleAssigned event", async () => {
       resourceRoleUpsert.mockResolvedValueOnce({});
 
-      await assignResourceRole("user-1", "campaign-1", "campaign", "CAMPAIGN_COACH", "admin-1");
+      await assignResourceRole("user-1", "campaign-1", "CAMPAIGN", "CAMPAIGN_COACH", "admin-1");
 
       expect(eventBus.emit).toHaveBeenCalledWith(
         "rbac.roleAssigned",
@@ -314,6 +314,7 @@ describe("rbac.service", () => {
 
   describe("updateGlobalRole", () => {
     it("updates user role and invalidates cache", async () => {
+      userFindUnique.mockResolvedValueOnce({ globalRole: "MEMBER" });
       userUpdate.mockResolvedValueOnce({
         id: "user-1",
         globalRole: "INNOVATION_MANAGER",
@@ -321,17 +322,22 @@ describe("rbac.service", () => {
 
       await updateGlobalRole("user-1", "INNOVATION_MANAGER", "admin-1");
 
+      expect(userFindUnique).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        select: { globalRole: true },
+      });
+
       expect(userUpdate).toHaveBeenCalledWith({
         where: { id: "user-1" },
         data: { globalRole: "INNOVATION_MANAGER" },
-        select: { id: true, globalRole: true },
       });
 
       expect(cacheDel).toHaveBeenCalledWith("rbac:global:user-1");
       expect(cacheDelPattern).toHaveBeenCalledWith("rbac:resource:user-1:*");
     });
 
-    it("emits rbac.globalRoleChanged event", async () => {
+    it("emits rbac.globalRoleChanged event with previousRole", async () => {
+      userFindUnique.mockResolvedValueOnce({ globalRole: "MEMBER" });
       userUpdate.mockResolvedValueOnce({
         id: "user-1",
         globalRole: "PLATFORM_ADMIN",
@@ -346,10 +352,25 @@ describe("rbac.service", () => {
           entityId: "user-1",
           actor: "admin-1",
           metadata: expect.objectContaining({
+            previousRole: "MEMBER",
             newRole: "PLATFORM_ADMIN",
           }),
         }),
       );
+    });
+
+    it("throws USER_NOT_FOUND when user does not exist", async () => {
+      userFindUnique.mockResolvedValueOnce(null);
+
+      await expect(updateGlobalRole("nonexistent", "PLATFORM_ADMIN", "admin-1")).rejects.toThrow(
+        RbacServiceError,
+      );
+      userFindUnique.mockResolvedValueOnce(null);
+      await expect(
+        updateGlobalRole("nonexistent", "PLATFORM_ADMIN", "admin-1"),
+      ).rejects.toMatchObject({
+        code: "USER_NOT_FOUND",
+      });
     });
   });
 });

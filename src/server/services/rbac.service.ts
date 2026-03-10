@@ -7,7 +7,7 @@ import {
   resourceRoleHasPermission,
 } from "@/server/lib/permissions";
 import { eventBus } from "@/server/events/event-bus";
-import type { GlobalRole, ResourceRoleType } from "@prisma/client";
+import type { GlobalRole, ResourceRoleType, ResourceType } from "@prisma/client";
 
 const childLogger = logger.child({ service: "rbac" });
 
@@ -139,7 +139,7 @@ export async function invalidateResourceRoleCache(
 export async function assignResourceRole(
   userId: string,
   resourceId: string,
-  resourceType: string,
+  resourceType: ResourceType,
   role: ResourceRoleType,
   assignedBy: string,
 ): Promise<void> {
@@ -201,10 +201,20 @@ export async function updateGlobalRole(
   newRole: GlobalRole,
   updatedBy: string,
 ): Promise<void> {
-  const user = await prisma.user.update({
+  const currentUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { globalRole: true },
+  });
+
+  if (!currentUser) {
+    throw new RbacServiceError("User not found", "USER_NOT_FOUND");
+  }
+
+  const previousRole = currentUser.globalRole;
+
+  await prisma.user.update({
     where: { id: userId },
     data: { globalRole: newRole },
-    select: { id: true, globalRole: true },
   });
 
   await invalidateUserCache(userId);
@@ -214,7 +224,7 @@ export async function updateGlobalRole(
     entityId: userId,
     actor: updatedBy,
     timestamp: new Date().toISOString(),
-    metadata: { previousRole: undefined, newRole: user.globalRole },
+    metadata: { previousRole, newRole },
   });
 
   childLogger.info({ userId, newRole, updatedBy }, "Global role updated");
