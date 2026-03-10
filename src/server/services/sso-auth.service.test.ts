@@ -66,8 +66,8 @@ const mockProvider = {
     { sourceAttribute: "displayName", targetField: "name" },
   ],
   groupMappings: [
-    { externalGroup: "admins", targetType: "global_role", targetValue: "PLATFORM_ADMIN" },
-    { externalGroup: "engineering", targetType: "user_group", targetValue: "group-1" },
+    { externalGroup: "admins", targetType: "GLOBAL_ROLE", targetValue: "PLATFORM_ADMIN" },
+    { externalGroup: "engineering", targetType: "USER_GROUP", targetValue: "group-1" },
   ],
 };
 

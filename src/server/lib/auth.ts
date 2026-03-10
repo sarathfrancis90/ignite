@@ -53,12 +53,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         groups: { label: "Groups", type: "text" },
       },
       async authorize(credentials) {
+        let rawAttributes: Record<string, string> = {};
+        let rawGroups: string[] = [];
+
+        try {
+          if (typeof credentials?.attributes === "string") {
+            rawAttributes = JSON.parse(credentials.attributes) as Record<string, string>;
+          }
+        } catch {
+          logger.warn("SSO login: failed to parse attributes JSON");
+          return null;
+        }
+
+        try {
+          if (typeof credentials?.groups === "string") {
+            rawGroups = JSON.parse(credentials.groups) as string[];
+          }
+        } catch {
+          logger.warn("SSO login: failed to parse groups JSON");
+          return null;
+        }
+
         const parsed = ssoLoginInput.safeParse({
           providerId: credentials?.providerId,
           externalId: credentials?.externalId,
-          attributes:
-            typeof credentials?.attributes === "string" ? JSON.parse(credentials.attributes) : {},
-          groups: typeof credentials?.groups === "string" ? JSON.parse(credentials.groups) : [],
+          attributes: rawAttributes,
+          groups: rawGroups,
         });
 
         if (!parsed.success) {

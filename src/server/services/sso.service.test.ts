@@ -500,7 +500,7 @@ describe("createGroupMapping", () => {
       id: "gm-1",
       ssoProviderId: "provider-1",
       externalGroup: "admins",
-      targetType: "global_role",
+      targetType: "GLOBAL_ROLE",
       targetValue: "PLATFORM_ADMIN",
     };
     groupMappingCreate.mockResolvedValue(mockMapping);
@@ -509,7 +509,7 @@ describe("createGroupMapping", () => {
       {
         ssoProviderId: "provider-1",
         externalGroup: "admins",
-        targetType: "global_role",
+        targetType: "GLOBAL_ROLE",
         targetValue: "PLATFORM_ADMIN",
       },
       actorId,
@@ -525,7 +525,7 @@ describe("createGroupMapping", () => {
       id: "gm-2",
       ssoProviderId: "provider-1",
       externalGroup: "engineering",
-      targetType: "user_group",
+      targetType: "USER_GROUP",
       targetValue: "group-1",
     };
     groupMappingCreate.mockResolvedValue(mockMapping);
@@ -534,7 +534,7 @@ describe("createGroupMapping", () => {
       {
         ssoProviderId: "provider-1",
         externalGroup: "engineering",
-        targetType: "user_group",
+        targetType: "USER_GROUP",
         targetValue: "group-1",
       },
       actorId,
@@ -551,7 +551,7 @@ describe("createGroupMapping", () => {
         {
           ssoProviderId: "provider-1",
           externalGroup: "admins",
-          targetType: "global_role",
+          targetType: "GLOBAL_ROLE",
           targetValue: "INVALID_ROLE",
         },
         actorId,
@@ -568,7 +568,7 @@ describe("createGroupMapping", () => {
         {
           ssoProviderId: "provider-1",
           externalGroup: "engineering",
-          targetType: "user_group",
+          targetType: "USER_GROUP",
           targetValue: "nonexistent",
         },
         actorId,
@@ -583,14 +583,14 @@ describe("updateGroupMapping", () => {
       id: "gm-1",
       ssoProviderId: "provider-1",
       externalGroup: "admins",
-      targetType: "global_role",
+      targetType: "GLOBAL_ROLE",
       targetValue: "PLATFORM_ADMIN",
     });
     groupMappingUpdate.mockResolvedValue({
       id: "gm-1",
       ssoProviderId: "provider-1",
       externalGroup: "super-admins",
-      targetType: "global_role",
+      targetType: "GLOBAL_ROLE",
       targetValue: "PLATFORM_ADMIN",
     });
 
@@ -622,7 +622,7 @@ describe("listGroupMappings", () => {
         id: "gm-1",
         ssoProviderId: "provider-1",
         externalGroup: "admins",
-        targetType: "global_role",
+        targetType: "GLOBAL_ROLE",
         targetValue: "PLATFORM_ADMIN",
       },
     ]);

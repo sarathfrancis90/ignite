@@ -47,8 +47,7 @@ export const authConfig: NextAuthConfig = {
       const isPublicPath =
         pathname === "/" ||
         pathname.startsWith("/login") ||
-        pathname.startsWith("/register") ||
-        pathname.startsWith("/api/auth/sso");
+        pathname.startsWith("/register");
 
       if (isPublicPath) {
         return true;

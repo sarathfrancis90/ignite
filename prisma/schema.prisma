@@ -719,6 +719,13 @@ model SsoAttributeMapping {
   @@map("sso_attribute_mappings")
 }
 
+enum SsoGroupMappingTargetType {
+  GLOBAL_ROLE
+  USER_GROUP
+
+  @@map("sso_group_mapping_target_type")
+}
+
 model SsoGroupMapping {
   id            String                   @id @default(cuid())
   ssoProviderId String                   @map("sso_provider_id")

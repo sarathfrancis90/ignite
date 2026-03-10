@@ -1,7 +1,8 @@
 import { prisma } from "@/server/lib/prisma";
 import { logger } from "@/server/lib/logger";
 import { eventBus } from "@/server/events/event-bus";
-import type { GlobalRole, SsoProviderType } from "@prisma/client";
+import { GlobalRole, SsoGroupMappingTargetType } from "@prisma/client";
+import type { SsoProviderType } from "@prisma/client";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ interface ProviderConfig {
   }>;
   groupMappings: Array<{
     externalGroup: string;
-    targetType: string;
+    targetType: SsoGroupMappingTargetType;
     targetValue: string;
   }>;
 }
@@ -129,6 +130,8 @@ interface MappedAttributes {
   skills?: string;
 }
 
+const VALID_TARGET_FIELDS: ReadonlySet<string> = new Set(["email", "name", "image", "bio", "skills"]);
+
 function mapAttributes(
   rawAttributes: Record<string, string>,
   mappings: Array<{ sourceAttribute: string; targetField: string }>,
@@ -137,9 +140,8 @@ function mapAttributes(
 
   for (const mapping of mappings) {
     const value = rawAttributes[mapping.sourceAttribute];
-    if (value !== undefined) {
-      const field = mapping.targetField as keyof MappedAttributes;
-      mapped[field] = value;
+    if (value !== undefined && VALID_TARGET_FIELDS.has(mapping.targetField)) {
+      mapped[mapping.targetField as keyof MappedAttributes] = value;
     }
   }
 
@@ -150,14 +152,21 @@ function mapAttributes(
   return mapped;
 }
 
-async function updateUserAttributes(userId: string, attributes: MappedAttributes) {
-  const updateData: Record<string, unknown> = {};
+interface UserAttributeUpdate {
+  name?: string;
+  image?: string;
+  bio?: string;
+  skills?: string[];
+}
 
-  if (attributes.name) updateData["name"] = attributes.name;
-  if (attributes.image) updateData["image"] = attributes.image;
-  if (attributes.bio) updateData["bio"] = attributes.bio;
+async function updateUserAttributes(userId: string, attributes: MappedAttributes) {
+  const updateData: UserAttributeUpdate = {};
+
+  if (attributes.name) updateData.name = attributes.name;
+  if (attributes.image) updateData.image = attributes.image;
+  if (attributes.bio) updateData.bio = attributes.bio;
   if (attributes.skills) {
-    updateData["skills"] = attributes.skills.split(",").map((s) => s.trim());
+    updateData.skills = attributes.skills.split(",").map((s) => s.trim());
   }
 
   if (Object.keys(updateData).length > 0) {
@@ -170,6 +179,12 @@ async function updateUserAttributes(userId: string, attributes: MappedAttributes
 
 // ── Group Sync ──────────────────────────────────────────────────
 
+const VALID_GLOBAL_ROLES: ReadonlySet<string> = new Set([
+  GlobalRole.PLATFORM_ADMIN,
+  GlobalRole.INNOVATION_MANAGER,
+  GlobalRole.MEMBER,
+]);
+
 async function syncGroups(userId: string, externalGroups: string[], provider: ProviderConfig) {
   if (provider.groupMappings.length === 0 || externalGroups.length === 0) {
     return;
@@ -178,11 +193,13 @@ async function syncGroups(userId: string, externalGroups: string[], provider: Pr
   for (const mapping of provider.groupMappings) {
     const isMember = externalGroups.includes(mapping.externalGroup);
 
-    if (mapping.targetType === "global_role" && isMember) {
-      await syncGlobalRole(userId, mapping.targetValue as GlobalRole);
+    if (mapping.targetType === SsoGroupMappingTargetType.GLOBAL_ROLE && isMember) {
+      if (VALID_GLOBAL_ROLES.has(mapping.targetValue)) {
+        await syncGlobalRole(userId, mapping.targetValue as GlobalRole);
+      }
     }
 
-    if (mapping.targetType === "user_group") {
+    if (mapping.targetType === SsoGroupMappingTargetType.USER_GROUP) {
       await syncUserGroup(userId, mapping.targetValue, isMember);
     }
   }

@@ -102,7 +102,7 @@ export const attributeMappingListInput = z.object({
 
 // ── Group Mapping Schemas ─────────────────────────────────────────
 
-export const groupMappingTargetType = z.enum(["global_role", "user_group"]);
+export const groupMappingTargetType = z.enum(["GLOBAL_ROLE", "USER_GROUP"]);
 
 export const groupMappingCreateInput = z.object({
   ssoProviderId: z.string().cuid(),
