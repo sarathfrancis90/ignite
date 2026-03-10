@@ -52,6 +52,8 @@ model User {
   spaceMemberships    InnovationSpaceMembership[]
   contributedIdeas    Idea[]                      @relation("IdeaContributor")
   coAuthoredIdeas     IdeaCoAuthor[]
+  orgManagerAssignments OrganizationManager[]
+  linkedContacts        Contact[]
 
   @@map("users")
 }
@@ -535,4 +537,111 @@ model IdeaCoAuthor {
   @@index([ideaId])
   @@index([userId])
   @@map("idea_co_authors")
+}
+
+// ── Partner / Organization Models ────────────────────────────
+
+enum OrgRelationshipStatus {
+  IDENTIFIED
+  VERIFIED
+  QUALIFIED
+  EVALUATION
+  PILOT
+  PARTNERSHIP
+  ARCHIVED
+
+  @@map("org_relationship_status")
+}
+
+enum NdaStatus {
+  NONE
+  REQUESTED
+  SIGNED
+  EXPIRED
+
+  @@map("nda_status")
+}
+
+enum InvitationStatus {
+  NOT_INVITED
+  INVITED
+  REGISTERED
+
+  @@map("invitation_status")
+}
+
+enum OrgManagerRole {
+  INTERNAL_MANAGER
+  EXTERNAL_PRIMARY
+
+  @@map("org_manager_role")
+}
+
+model Organization {
+  id                 String                @id @default(cuid())
+  name               String
+  description        String?               @db.Text
+  websiteUrl         String?               @map("website_url")
+  logoUrl            String?               @map("logo_url")
+  industry           String?
+  location           String?
+  foundedYear        Int?                  @map("founded_year")
+  employeeCount      String?               @map("employee_count")
+  fundingStage       String?               @map("funding_stage")
+  fundingTotal       String?               @map("funding_total")
+  relationshipStatus OrgRelationshipStatus @default(IDENTIFIED) @map("relationship_status")
+  ndaStatus          NdaStatus             @default(NONE) @map("nda_status")
+  isConfidential     Boolean               @default(false) @map("is_confidential")
+  isArchived         Boolean               @default(false) @map("is_archived")
+  crunchbaseId       String?               @unique @map("crunchbase_id")
+  innospotId         String?               @map("innospot_id")
+  customFields       Json?                 @map("custom_fields")
+  managementTeam     Json?                 @map("management_team")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  managers OrganizationManager[]
+  contacts Contact[]
+
+  @@index([relationshipStatus])
+  @@index([name])
+  @@index([isArchived])
+  @@map("organizations")
+}
+
+model OrganizationManager {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  userId         String         @map("user_id")
+  role           OrgManagerRole @default(INTERNAL_MANAGER)
+  assignedAt     DateTime       @default(now()) @map("assigned_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_managers")
+}
+
+model Contact {
+  id               String           @id @default(cuid())
+  organizationId   String           @map("organization_id")
+  firstName        String           @map("first_name")
+  lastName         String           @map("last_name")
+  email            String?
+  phone            String?
+  title            String?
+  isPrimary        Boolean          @default(false) @map("is_primary")
+  invitationStatus InvitationStatus @default(NOT_INVITED) @map("invitation_status")
+  linkedUserId     String?          @map("linked_user_id")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedUser   User?        @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([linkedUserId])
+  @@map("contacts")
 }

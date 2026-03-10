@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Megaphone,
   Compass,
+  Building2,
   Shield,
   User,
   ChevronLeft,
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, section: "core" },
   { label: "Campaigns", href: "/campaigns", icon: Megaphone, section: "ideation" },
   { label: "Explore", href: "/explore", icon: Compass, section: "ideation" },
+  { label: "Partners", href: "/partners", icon: Building2, section: "partners" },
   { label: "Admin", href: "/admin/users", icon: Shield, section: "admin" },
 ];
 

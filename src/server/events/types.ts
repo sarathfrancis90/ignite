@@ -17,6 +17,7 @@ export interface EventMap {
   "idea.created": EventPayload;
   "idea.submitted": EventPayload;
   "idea.updated": EventPayload;
+  "idea.deleted": EventPayload;
   "idea.statusChanged": EventPayload;
   "idea.transitioned": EventPayload;
   "idea.archived": EventPayload;
@@ -25,7 +26,6 @@ export interface EventMap {
   "idea.coachRejected": EventPayload;
   "idea.coachRequestedChanges": EventPayload;
   "idea.voted": EventPayload;
-  "idea.deleted": EventPayload;
   "user.registered": EventPayload;
   "user.profileUpdated": EventPayload;
   "evaluation.completed": EventPayload;
@@ -56,6 +56,13 @@ export interface EventMap {
   "channel.created": EventPayload;
   "channel.updated": EventPayload;
   "channel.archived": EventPayload;
+  "organization.created": EventPayload;
+  "organization.updated": EventPayload;
+  "organization.archived": EventPayload;
+  "contact.created": EventPayload;
+  "contact.updated": EventPayload;
+  "contact.deleted": EventPayload;
+  "contact.invited": EventPayload;
 }
 
 export type EventName = keyof EventMap;

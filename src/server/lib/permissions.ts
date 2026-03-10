@@ -62,6 +62,13 @@ export const Action = {
   ADMIN_MANAGE_GROUPS: "admin.manageGroups",
   ADMIN_VIEW_METRICS: "admin.viewMetrics",
   ADMIN_MANAGE_SPACES: "admin.manageSpaces",
+
+  // Organization (partner) management
+  ORGANIZATION_CREATE: "organization.create",
+  ORGANIZATION_READ: "organization.read",
+  ORGANIZATION_UPDATE: "organization.update",
+  ORGANIZATION_DELETE: "organization.delete",
+  ORGANIZATION_MANAGE_CONTACTS: "organization.manageContacts",
 } as const;
 
 export type ActionType = (typeof Action)[keyof typeof Action];
@@ -99,6 +106,11 @@ export const GLOBAL_ROLE_PERMISSIONS: Record<GlobalRoleName, readonly ActionType
     Action.IDEA_DELETE_OWN,
     Action.EVALUATION_VIEW_RESULTS,
     Action.NOTIFICATION_READ_OWN,
+    Action.ORGANIZATION_CREATE,
+    Action.ORGANIZATION_READ,
+    Action.ORGANIZATION_UPDATE,
+    Action.ORGANIZATION_DELETE,
+    Action.ORGANIZATION_MANAGE_CONTACTS,
   ],
   MEMBER: [
     Action.USER_READ_OWN,
@@ -111,6 +123,7 @@ export const GLOBAL_ROLE_PERMISSIONS: Record<GlobalRoleName, readonly ActionType
     Action.IDEA_DELETE_OWN,
     Action.EVALUATION_PARTICIPATE,
     Action.NOTIFICATION_READ_OWN,
+    Action.ORGANIZATION_READ,
   ],
 } as const;
 
