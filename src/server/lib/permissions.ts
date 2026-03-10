@@ -24,6 +24,10 @@ export const Action = {
   CAMPAIGN_MANAGE: "campaign.manage",
   CAMPAIGN_TRANSITION: "campaign.transition",
   CAMPAIGN_ASSIGN_ROLES: "campaign.assignRoles",
+  CAMPAIGN_COPY: "campaign.copy",
+  CAMPAIGN_SPONSOR_VIEW: "campaign.sponsorView",
+  CAMPAIGN_SPONSOR_COMMENT: "campaign.sponsorComment",
+  CAMPAIGN_SPONSOR_APPROVE: "campaign.sponsorApprove",
 
   // Channel management
   CHANNEL_CREATE: "channel.create",
@@ -70,6 +74,7 @@ type ResourceRoleName =
   | "CAMPAIGN_MODERATOR"
   | "CAMPAIGN_EVALUATOR"
   | "CAMPAIGN_SEEDER"
+  | "CAMPAIGN_SPONSOR"
   | "CHANNEL_MANAGER"
   | "CHANNEL_CONTRIBUTOR";
 
@@ -85,6 +90,7 @@ export const GLOBAL_ROLE_PERMISSIONS: Record<GlobalRoleName, readonly ActionType
     Action.USER_READ_ANY,
     Action.CAMPAIGN_CREATE,
     Action.CAMPAIGN_READ,
+    Action.CAMPAIGN_COPY,
     Action.CHANNEL_CREATE,
     Action.CHANNEL_READ,
     Action.IDEA_CREATE,
@@ -118,6 +124,7 @@ export const RESOURCE_ROLE_PERMISSIONS: Record<ResourceRoleName, readonly Action
     Action.CAMPAIGN_MANAGE,
     Action.CAMPAIGN_TRANSITION,
     Action.CAMPAIGN_ASSIGN_ROLES,
+    Action.CAMPAIGN_COPY,
     Action.IDEA_READ,
     Action.IDEA_UPDATE_ANY,
     Action.IDEA_DELETE_ANY,
@@ -161,6 +168,14 @@ export const RESOURCE_ROLE_PERMISSIONS: Record<ResourceRoleName, readonly Action
     Action.IDEA_CREATE,
     Action.IDEA_READ,
     Action.IDEA_UPDATE_OWN,
+  ],
+  CAMPAIGN_SPONSOR: [
+    Action.CAMPAIGN_READ,
+    Action.CAMPAIGN_SPONSOR_VIEW,
+    Action.CAMPAIGN_SPONSOR_COMMENT,
+    Action.CAMPAIGN_SPONSOR_APPROVE,
+    Action.IDEA_READ,
+    Action.EVALUATION_VIEW_RESULTS,
   ],
   CHANNEL_MANAGER: [
     Action.CHANNEL_READ,

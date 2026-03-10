@@ -10,7 +10,10 @@ export interface EventMap {
   "campaign.created": EventPayload;
   "campaign.updated": EventPayload;
   "campaign.phaseChanged": EventPayload;
+  "campaign.copied": EventPayload;
   "campaign.membersUpdated": EventPayload;
+  "campaign.sponsorCommented": EventPayload;
+  "campaign.shortlistApproved": EventPayload;
   "idea.submitted": EventPayload;
   "idea.updated": EventPayload;
   "idea.statusChanged": EventPayload;

@@ -20,6 +20,7 @@ export const campaignMemberSetInput = z.object({
         "CAMPAIGN_MODERATOR",
         "CAMPAIGN_EVALUATOR",
         "CAMPAIGN_SEEDER",
+        "CAMPAIGN_SPONSOR",
       ]),
       category: z.string().max(200).optional(),
     }),

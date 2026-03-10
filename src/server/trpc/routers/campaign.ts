@@ -9,6 +9,10 @@ import {
   campaignTransitionInput,
   campaignGetTransitionsInput,
   campaignRevertInput,
+  campaignCopyInput,
+  campaignSponsorViewInput,
+  campaignSponsorCommentInput,
+  campaignSponsorApproveInput,
   listCampaigns,
   getCampaignById,
   createCampaign,
@@ -16,6 +20,10 @@ import {
   transitionCampaign,
   getCampaignTransitions,
   revertCampaignPhase,
+  copyCampaign,
+  getSponsorView,
+  addSponsorComment,
+  approveSponsorShortlist,
   CampaignServiceError,
 } from "@/server/services/campaign.service";
 import {
@@ -176,5 +184,69 @@ export const campaignRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       return getCampaignKpiTimeSeries(input.campaignId, input.days);
+    }),
+
+  copy: protectedProcedure
+    .use(
+      requirePermission<{ sourceCampaignId: string }>(
+        Action.CAMPAIGN_COPY,
+        (input) => input.sourceCampaignId,
+      ),
+    )
+    .input(campaignCopyInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await copyCampaign(input, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  getSponsorView: protectedProcedure
+    .use(
+      requirePermission<{ campaignId: string }>(
+        Action.CAMPAIGN_SPONSOR_VIEW,
+        (input) => input.campaignId,
+      ),
+    )
+    .input(campaignSponsorViewInput)
+    .query(async ({ input }) => {
+      try {
+        return await getSponsorView(input);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  sponsorComment: protectedProcedure
+    .use(
+      requirePermission<{ campaignId: string }>(
+        Action.CAMPAIGN_SPONSOR_COMMENT,
+        (input) => input.campaignId,
+      ),
+    )
+    .input(campaignSponsorCommentInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await addSponsorComment(input, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
+    }),
+
+  sponsorApprove: protectedProcedure
+    .use(
+      requirePermission<{ campaignId: string }>(
+        Action.CAMPAIGN_SPONSOR_APPROVE,
+        (input) => input.campaignId,
+      ),
+    )
+    .input(campaignSponsorApproveInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await approveSponsorShortlist(input, ctx.session.user.id);
+      } catch (error) {
+        handleCampaignError(error);
+      }
     }),
 });
