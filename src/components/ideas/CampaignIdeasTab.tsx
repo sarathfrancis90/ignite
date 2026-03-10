@@ -8,24 +8,13 @@ import { IdeaCard } from "./IdeaCard";
 import { IdeaForm } from "./IdeaForm";
 import { trpc } from "@/lib/trpc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-type IdeaStatusFilter =
-  | "DRAFT"
-  | "QUALIFICATION"
-  | "COMMUNITY_DISCUSSION"
-  | "HOT"
-  | "EVALUATION"
-  | "SELECTED_IMPLEMENTATION"
-  | "IMPLEMENTED"
-  | "ARCHIVED";
-
-type IdeaStatus = IdeaStatusFilter;
+import { type IdeaStatus, isIdeaStatus } from "@/types/idea";
 
 interface IdeaListItem {
   id: string;
   title: string;
   teaser: string | null;
-  status: string;
+  status: IdeaStatus;
   tags: string[];
   likesCount: number;
   commentsCount: number;
@@ -39,7 +28,12 @@ interface IdeaListItem {
   createdAt: string;
 }
 
-const STATUS_OPTIONS: { value: IdeaStatusFilter; label: string }[] = [
+interface IdeaListResponse {
+  items: IdeaListItem[];
+  nextCursor?: string;
+}
+
+const STATUS_OPTIONS: { value: IdeaStatus; label: string }[] = [
   { value: "DRAFT", label: "Draft" },
   { value: "QUALIFICATION", label: "Qualification" },
   { value: "COMMUNITY_DISCUSSION", label: "Community Discussion" },
@@ -57,19 +51,47 @@ interface CampaignIdeasTabProps {
 
 export function CampaignIdeasTab({ campaignId, campaignStatus }: CampaignIdeasTabProps) {
   const [search, setSearch] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<IdeaStatusFilter | undefined>();
+  const [statusFilter, setStatusFilter] = React.useState<IdeaStatus | undefined>();
   const [showNewIdeaDialog, setShowNewIdeaDialog] = React.useState(false);
+  const [cursor, setCursor] = React.useState<string | undefined>();
+  const [accumulatedItems, setAccumulatedItems] = React.useState<IdeaListItem[]>([]);
 
   const ideasQuery = trpc.idea.list.useQuery({
     campaignId,
     limit: 20,
     search: search || undefined,
     status: statusFilter,
-  }) as {
-    data: { items: IdeaListItem[]; nextCursor?: string } | undefined;
-    isLoading: boolean;
-    isError: boolean;
-  };
+    cursor,
+  });
+
+  // Type the data safely from tRPC response
+  const data = ideasQuery.data as IdeaListResponse | undefined;
+
+  // Reset accumulated items when filters change
+  const filterKey = `${search}|${statusFilter ?? ""}`;
+  const prevFilterKey = React.useRef(filterKey);
+  React.useEffect(() => {
+    if (prevFilterKey.current !== filterKey) {
+      setAccumulatedItems([]);
+      setCursor(undefined);
+      prevFilterKey.current = filterKey;
+    }
+  }, [filterKey]);
+
+  // Accumulate items as pages load
+  React.useEffect(() => {
+    if (data) {
+      if (!cursor) {
+        setAccumulatedItems(data.items);
+      } else {
+        setAccumulatedItems((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          const newItems = data.items.filter((item) => !existingIds.has(item.id));
+          return [...prev, ...newItems];
+        });
+      }
+    }
+  }, [data, cursor]);
 
   const canSubmitIdeas = ["SEEDING", "SUBMISSION"].includes(campaignStatus);
 
@@ -89,9 +111,10 @@ export function CampaignIdeasTab({ campaignId, campaignStatus }: CampaignIdeasTa
           <select
             className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
             value={statusFilter ?? ""}
-            onChange={(e) =>
-              setStatusFilter(e.target.value ? (e.target.value as IdeaStatusFilter) : undefined)
-            }
+            onChange={(e) => {
+              const value = e.target.value;
+              setStatusFilter(value && isIdeaStatus(value) ? value : undefined);
+            }}
           >
             <option value="">All statuses</option>
             {STATUS_OPTIONS.map((opt) => (
@@ -119,7 +142,7 @@ export function CampaignIdeasTab({ campaignId, campaignStatus }: CampaignIdeasTa
         </div>
       </div>
 
-      {ideasQuery.isLoading && (
+      {ideasQuery.isLoading && accumulatedItems.length === 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-48 animate-pulse rounded-xl bg-gray-100" />
@@ -133,7 +156,7 @@ export function CampaignIdeasTab({ campaignId, campaignStatus }: CampaignIdeasTa
         </div>
       )}
 
-      {ideasQuery.data && ideasQuery.data.items.length === 0 && (
+      {accumulatedItems.length === 0 && !ideasQuery.isLoading && !ideasQuery.isError && (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
           <Lightbulb className="mx-auto h-12 w-12 text-gray-300" />
           <h3 className="mt-4 text-lg font-medium text-gray-900">No ideas yet</h3>
@@ -145,18 +168,23 @@ export function CampaignIdeasTab({ campaignId, campaignStatus }: CampaignIdeasTa
         </div>
       )}
 
-      {ideasQuery.data && ideasQuery.data.items.length > 0 && (
+      {accumulatedItems.length > 0 && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {ideasQuery.data.items.map((idea) => (
-              <IdeaCard key={idea.id} idea={{ ...idea, status: idea.status as IdeaStatus }} />
+            {accumulatedItems.map((idea) => (
+              <IdeaCard key={idea.id} idea={idea} />
             ))}
           </div>
 
-          {ideasQuery.data.nextCursor && (
+          {data?.nextCursor && (
             <div className="flex justify-center pt-4">
-              <Button variant="outline" size="sm">
-                Load more
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCursor(data.nextCursor)}
+                disabled={ideasQuery.isFetching}
+              >
+                {ideasQuery.isFetching ? "Loading..." : "Load more"}
               </Button>
             </div>
           )}

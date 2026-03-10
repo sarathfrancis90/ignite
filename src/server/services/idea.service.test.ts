@@ -369,11 +369,19 @@ describe("idea.service", () => {
         code: "IDEA_NOT_FOUND",
       });
     });
+
+    it("throws NOT_AUTHORIZED when actor is not the contributor", async () => {
+      ideaFindUnique.mockResolvedValue(mockIdea);
+
+      await expect(deleteIdea("idea-1", "other-user")).rejects.toMatchObject({
+        code: "NOT_AUTHORIZED",
+      });
+    });
   });
 
   describe("updateIdea", () => {
     it("updates an idea successfully", async () => {
-      ideaFindUnique.mockResolvedValue(mockIdea);
+      ideaFindUnique.mockResolvedValue({ ...mockIdea, coAuthors: [] });
       const updatedIdea = { ...mockIdea, title: "Updated Title" };
       mockTransaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) => {
         return fn(prisma);
@@ -389,6 +397,30 @@ describe("idea.service", () => {
           entityId: "idea-1",
         }),
       );
+    });
+
+    it("allows co-author to update idea", async () => {
+      ideaFindUnique.mockResolvedValue({
+        ...mockIdea,
+        coAuthors: [{ userId: "co-author-1" }],
+      });
+      const updatedIdea = { ...mockIdea, title: "Co-author Update" };
+      mockTransaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) => {
+        return fn(prisma);
+      });
+      ideaUpdate.mockResolvedValue(updatedIdea);
+
+      const result = await updateIdea({ id: "idea-1", title: "Co-author Update" }, "co-author-1");
+
+      expect(result.title).toBe("Co-author Update");
+    });
+
+    it("throws NOT_AUTHORIZED when actor is not contributor or co-author", async () => {
+      ideaFindUnique.mockResolvedValue({ ...mockIdea, coAuthors: [] });
+
+      await expect(updateIdea({ id: "idea-1", title: "X" }, "other-user")).rejects.toMatchObject({
+        code: "NOT_AUTHORIZED",
+      });
     });
 
     it("throws when idea not found", async () => {

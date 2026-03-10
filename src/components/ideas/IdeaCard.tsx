@@ -5,21 +5,14 @@ import { Heart, MessageCircle, Eye, Tag } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { IdeaStatus } from "@/types/idea";
 
 interface IdeaCardProps {
   idea: {
     id: string;
     title: string;
     teaser: string | null;
-    status:
-      | "DRAFT"
-      | "QUALIFICATION"
-      | "COMMUNITY_DISCUSSION"
-      | "HOT"
-      | "EVALUATION"
-      | "SELECTED_IMPLEMENTATION"
-      | "IMPLEMENTED"
-      | "ARCHIVED";
+    status: IdeaStatus;
     tags: string[];
     likesCount: number;
     commentsCount: number;

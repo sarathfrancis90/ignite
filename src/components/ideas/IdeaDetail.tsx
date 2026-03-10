@@ -17,17 +17,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
-
-type IdeaStatus =
-  | "DRAFT"
-  | "QUALIFICATION"
-  | "COMMUNITY_DISCUSSION"
-  | "HOT"
-  | "EVALUATION"
-  | "SELECTED_IMPLEMENTATION"
-  | "IMPLEMENTED"
-  | "ARCHIVED";
 
 interface IdeaDetailProps {
   ideaId: string;
@@ -65,6 +63,7 @@ function UserAvatar({
 export function IdeaDetail({ ideaId }: IdeaDetailProps) {
   const router = useRouter();
   const utils = trpc.useUtils();
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   const ideaQuery = trpc.idea.getById.useQuery({ id: ideaId }, { enabled: !!ideaId });
 
@@ -129,7 +128,7 @@ export function IdeaDetail({ ideaId }: IdeaDetailProps) {
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className="font-display text-2xl font-bold text-gray-900">{idea.title}</h1>
-              <StatusBadge status={idea.status as IdeaStatus} />
+              <StatusBadge status={idea.status} />
             </div>
             {idea.teaser && <p className="mt-2 text-gray-600">{idea.teaser}</p>}
           </div>
@@ -153,7 +152,7 @@ export function IdeaDetail({ ideaId }: IdeaDetailProps) {
                   variant="outline"
                   size="sm"
                   className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                  onClick={() => deleteMutation.mutate({ id: idea.id })}
+                  onClick={() => setShowDeleteConfirm(true)}
                   disabled={deleteMutation.isPending}
                 >
                   {deleteMutation.isPending ? (
@@ -261,6 +260,34 @@ export function IdeaDetail({ ideaId }: IdeaDetailProps) {
           {(submitMutation.error ?? deleteMutation.error)?.message}
         </div>
       )}
+
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Idea</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &ldquo;{idea.title}&rdquo;? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteMutation.mutate({ id: idea.id });
+                setShowDeleteConfirm(false);
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

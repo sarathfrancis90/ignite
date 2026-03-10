@@ -499,6 +499,9 @@ model Idea {
   isConfidential     Boolean   @default(false) @map("is_confidential")
   inventionDisclosure Boolean  @default(false) @map("invention_disclosure")
 
+  // Full-text search vector (populated via database trigger)
+  searchVector  Unsupported("tsvector")? @map("search_vector")
+
   // Engagement counters (denormalized for performance)
   likesCount    Int @default(0) @map("likes_count")
   commentsCount Int @default(0) @map("comments_count")
@@ -516,6 +519,7 @@ model Idea {
   @@index([contributorId])
   @@index([status])
   @@index([campaignId, status])
+  @@index([searchVector], type: Gin)
   @@map("ideas")
 }
 

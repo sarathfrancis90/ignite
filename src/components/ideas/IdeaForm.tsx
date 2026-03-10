@@ -2,12 +2,34 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useForm, type Resolver } from "react-hook-form";
+import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+
+const ideaFormSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200, "Title must be 200 characters or less"),
+  teaser: z.string().max(1000).optional(),
+  description: z.string().max(50000).optional(),
+  category: z.string().max(200).optional(),
+  tagsInput: z.string().optional(),
+  isConfidential: z.boolean(),
+  inventionDisclosure: z.boolean(),
+});
+
+interface IdeaFormValues {
+  title: string;
+  teaser?: string;
+  description?: string;
+  category?: string;
+  tagsInput?: string;
+  isConfidential: boolean;
+  inventionDisclosure: boolean;
+}
 
 interface IdeaFormProps {
   campaignId: string;
@@ -24,167 +46,167 @@ interface IdeaFormProps {
   onSuccess?: () => void;
 }
 
+const ideaFormResolver: Resolver<IdeaFormValues> = async (values) => {
+  const result = ideaFormSchema.safeParse(values);
+  if (result.success) {
+    return { values: result.data, errors: {} };
+  }
+  const fieldErrors: Record<string, { type: string; message: string }> = {};
+  for (const issue of result.error.issues) {
+    const path = issue.path.join(".");
+    if (!fieldErrors[path]) {
+      fieldErrors[path] = { type: "validation", message: issue.message };
+    }
+  }
+  return { values: {}, errors: fieldErrors };
+};
+
+function parseTags(tagsStr: string): string[] {
+  return tagsStr
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+}
+
 export function IdeaForm({ campaignId, idea, onSuccess }: IdeaFormProps) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const isEditing = !!idea;
 
-  const [title, setTitle] = React.useState(idea?.title ?? "");
-  const [teaser, setTeaser] = React.useState(idea?.teaser ?? "");
-  const [description, setDescription] = React.useState(idea?.description ?? "");
-  const [category, setCategory] = React.useState(idea?.category ?? "");
-  const [tagsInput, setTagsInput] = React.useState(idea?.tags.join(", ") ?? "");
-  const [isConfidential, setIsConfidential] = React.useState(idea?.isConfidential ?? false);
-  const [inventionDisclosure, setInventionDisclosure] = React.useState(
-    idea?.inventionDisclosure ?? false,
-  );
-  const [titleError, setTitleError] = React.useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IdeaFormValues>({
+    resolver: ideaFormResolver,
+    defaultValues: {
+      title: idea?.title ?? "",
+      teaser: idea?.teaser ?? "",
+      description: idea?.description ?? "",
+      category: idea?.category ?? "",
+      tagsInput: idea?.tags.join(", ") ?? "",
+      isConfidential: idea?.isConfidential ?? false,
+      inventionDisclosure: idea?.inventionDisclosure ?? false,
+    },
+  });
 
   const createMutation = trpc.idea.create.useMutation();
-  React.useEffect(() => {
-    if (createMutation.isSuccess && createMutation.data) {
-      void utils.idea.list.invalidate({ campaignId });
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push(`/ideas/${createMutation.data.id}`);
-      }
-    }
-  }, [createMutation.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const updateMutation = trpc.idea.update.useMutation();
-  React.useEffect(() => {
-    if (updateMutation.isSuccess && updateMutation.data) {
-      void utils.idea.list.invalidate({ campaignId });
-      void utils.idea.getById.invalidate({ id: updateMutation.data.id });
-      if (onSuccess) {
-        onSuccess();
-      }
-    }
-  }, [updateMutation.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const submitMutation = trpc.idea.submit.useMutation();
-  React.useEffect(() => {
-    if (submitMutation.isSuccess) {
-      void utils.idea.list.invalidate({ campaignId });
-      if (idea) {
-        void utils.idea.getById.invalidate({ id: idea.id });
-      }
-      if (onSuccess) {
-        onSuccess();
-      }
-    }
-  }, [submitMutation.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isPending =
     createMutation.isPending || updateMutation.isPending || submitMutation.isPending;
 
-  function parseTags(tagsStr: string): string[] {
-    return tagsStr
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
+  function buildPayload(values: IdeaFormValues) {
+    const tags = parseTags(values.tagsInput ?? "");
+    return {
+      title: values.title,
+      teaser: values.teaser || undefined,
+      description: values.description || undefined,
+      category: values.category || undefined,
+      tags,
+      isConfidential: values.isConfidential,
+      inventionDisclosure: values.inventionDisclosure,
+    };
   }
 
-  function validate(): boolean {
-    if (!title.trim()) {
-      setTitleError("Title is required");
-      return false;
-    }
-    if (title.length > 200) {
-      setTitleError("Title must be 200 characters or less");
-      return false;
-    }
-    setTitleError(null);
-    return true;
-  }
-
-  function handleSaveDraft(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
-    const tags = parseTags(tagsInput);
-
-    if (isEditing) {
-      updateMutation.mutate({
-        id: idea.id,
-        title,
-        teaser: teaser || null,
-        description: description || null,
-        category: category || null,
-        tags,
-        isConfidential,
-        inventionDisclosure,
-      });
+  function handleCreateSuccess(dataId: string) {
+    void utils.idea.list.invalidate({ campaignId });
+    if (onSuccess) {
+      onSuccess();
     } else {
-      createMutation.mutate({
-        campaignId,
-        title,
-        teaser: teaser || undefined,
-        description: description || undefined,
-        category: category || undefined,
-        tags,
-        isConfidential,
-        inventionDisclosure,
-        submitImmediately: false,
-      });
+      router.push(`/ideas/${dataId}`);
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
-    const tags = parseTags(tagsInput);
+  function handleUpdateSuccess(dataId: string) {
+    void utils.idea.list.invalidate({ campaignId });
+    void utils.idea.getById.invalidate({ id: dataId });
+    if (onSuccess) {
+      onSuccess();
+    }
+  }
+
+  function handleSubmitSuccess() {
+    void utils.idea.list.invalidate({ campaignId });
+    if (idea) {
+      void utils.idea.getById.invalidate({ id: idea.id });
+    }
+    if (onSuccess) {
+      onSuccess();
+    }
+  }
+
+  function onSaveDraft(values: IdeaFormValues) {
+    const payload = buildPayload(values);
 
     if (isEditing) {
       updateMutation.mutate(
         {
           id: idea.id,
-          title,
-          teaser: teaser || null,
-          description: description || null,
-          category: category || null,
-          tags,
-          isConfidential,
-          inventionDisclosure,
+          ...payload,
+          teaser: payload.teaser ?? null,
+          description: payload.description ?? null,
+          category: payload.category ?? null,
+        },
+        { onSuccess: (data) => handleUpdateSuccess(data.id) },
+      );
+    } else {
+      createMutation.mutate(
+        {
+          campaignId,
+          ...payload,
+          submitImmediately: false,
+        },
+        { onSuccess: (data) => handleCreateSuccess(data.id) },
+      );
+    }
+  }
+
+  function onSubmitIdea(values: IdeaFormValues) {
+    const payload = buildPayload(values);
+
+    if (isEditing) {
+      updateMutation.mutate(
+        {
+          id: idea.id,
+          ...payload,
+          teaser: payload.teaser ?? null,
+          description: payload.description ?? null,
+          category: payload.category ?? null,
         },
         {
-          onSuccess: () => {
-            submitMutation.mutate({ id: idea.id });
+          onSuccess: (data) => {
+            handleUpdateSuccess(data.id);
+            submitMutation.mutate({ id: idea.id }, { onSuccess: handleSubmitSuccess });
           },
         },
       );
     } else {
-      createMutation.mutate({
-        campaignId,
-        title,
-        teaser: teaser || undefined,
-        description: description || undefined,
-        category: category || undefined,
-        tags,
-        isConfidential,
-        inventionDisclosure,
-        submitImmediately: true,
-      });
+      createMutation.mutate(
+        {
+          campaignId,
+          ...payload,
+          submitImmediately: true,
+        },
+        { onSuccess: (data) => handleCreateSuccess(data.id) },
+      );
     }
   }
 
   const mutationError = createMutation.error ?? updateMutation.error ?? submitMutation.error;
 
   return (
-    <form className="space-y-6" onSubmit={handleSubmit}>
+    <form className="space-y-6" onSubmit={handleSubmit(onSubmitIdea)}>
       <div className="space-y-4">
         <div>
           <Label htmlFor="title">Title *</Label>
           <Input
             id="title"
             placeholder="Give your idea a clear, concise title"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              setTitleError(null);
-            }}
+            {...register("title")}
           />
-          {titleError && <p className="mt-1 text-sm text-red-600">{titleError}</p>}
+          {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>}
         </div>
 
         <div>
@@ -193,8 +215,7 @@ export function IdeaForm({ campaignId, idea, onSuccess }: IdeaFormProps) {
             id="teaser"
             placeholder="A short summary of your idea (visible on cards)"
             rows={2}
-            value={teaser}
-            onChange={(e) => setTeaser(e.target.value)}
+            {...register("teaser")}
           />
         </div>
 
@@ -204,8 +225,7 @@ export function IdeaForm({ campaignId, idea, onSuccess }: IdeaFormProps) {
             id="description"
             placeholder="Describe your idea in detail..."
             rows={8}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            {...register("description")}
           />
         </div>
 
@@ -214,38 +234,26 @@ export function IdeaForm({ campaignId, idea, onSuccess }: IdeaFormProps) {
           <Input
             id="category"
             placeholder="e.g., Sustainability, Digitalization"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            {...register("category")}
           />
         </div>
 
         <div>
-          <Label htmlFor="tags">Tags (comma-separated)</Label>
+          <Label htmlFor="tagsInput">Tags (comma-separated)</Label>
           <Input
-            id="tags"
+            id="tagsInput"
             placeholder="e.g., AI, automation, cost-reduction"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
+            {...register("tagsInput")}
           />
         </div>
 
         <div className="flex gap-6">
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="rounded"
-              checked={isConfidential}
-              onChange={(e) => setIsConfidential(e.target.checked)}
-            />
+            <input type="checkbox" className="rounded" {...register("isConfidential")} />
             Confidential idea
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="rounded"
-              checked={inventionDisclosure}
-              onChange={(e) => setInventionDisclosure(e.target.checked)}
-            />
+            <input type="checkbox" className="rounded" {...register("inventionDisclosure")} />
             Invention disclosure
           </label>
         </div>
@@ -258,7 +266,12 @@ export function IdeaForm({ campaignId, idea, onSuccess }: IdeaFormProps) {
       )}
 
       <div className="flex gap-3">
-        <Button type="button" variant="outline" disabled={isPending} onClick={handleSaveDraft}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending}
+          onClick={handleSubmit(onSaveDraft)}
+        >
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Save as Draft
         </Button>

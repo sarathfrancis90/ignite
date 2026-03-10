@@ -1,7 +1,7 @@
 import { prisma } from "@/server/lib/prisma";
 import { logger } from "@/server/lib/logger";
 import { eventBus } from "@/server/events/event-bus";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, IdeaStatus } from "@prisma/client";
 import type { IdeaCreateInput, IdeaUpdateInput, IdeaListInput } from "./idea.schemas";
 
 export {
@@ -22,8 +22,8 @@ function serializeIdea(idea: {
   title: string;
   teaser: string | null;
   description: string | null;
-  status: string;
-  previousStatus: string | null;
+  status: IdeaStatus;
+  previousStatus: IdeaStatus | null;
   campaignId: string;
   contributorId: string;
   category: string | null;
@@ -277,11 +277,22 @@ export async function createIdea(input: IdeaCreateInput, contributorId: string) 
 export async function updateIdea(input: IdeaUpdateInput, updatedById: string) {
   const existing = await prisma.idea.findUnique({
     where: { id: input.id },
-    select: { id: true, status: true, contributorId: true },
+    select: {
+      id: true,
+      status: true,
+      contributorId: true,
+      coAuthors: { select: { userId: true } },
+    },
   });
 
   if (!existing) {
     throw new IdeaServiceError("Idea not found", "IDEA_NOT_FOUND");
+  }
+
+  const isContributor = existing.contributorId === updatedById;
+  const isCoAuthor = existing.coAuthors.some((ca) => ca.userId === updatedById);
+  if (!isContributor && !isCoAuthor) {
+    throw new IdeaServiceError("You can only update your own ideas", "NOT_AUTHORIZED");
   }
 
   const { id, coAuthorIds, ...updateData } = input;
@@ -451,6 +462,10 @@ export async function deleteIdea(ideaId: string, actor: string) {
 
   if (!idea) {
     throw new IdeaServiceError("Idea not found", "IDEA_NOT_FOUND");
+  }
+
+  if (idea.contributorId !== actor) {
+    throw new IdeaServiceError("You can only delete your own ideas", "NOT_AUTHORIZED");
   }
 
   await prisma.idea.delete({ where: { id: ideaId } });
