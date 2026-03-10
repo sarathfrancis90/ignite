@@ -1,0 +1,283 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// MODULE 1: USERS
+// ============================================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String?
+  firstName         String
+  lastName          String
+  displayName       String?
+  avatarUrl         String?
+  isActive          Boolean   @default(true)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  ideas             Idea[]              @relation("IdeaContributor")
+  coAuthoredIdeas   IdeaCoAuthor[]
+  comments          Comment[]
+  votes             Vote[]
+  likes             Like[]
+  campaignRoles     CampaignMember[]
+  activityLogs      ActivityLog[]
+}
+
+enum GlobalRole {
+  PLATFORM_ADMIN
+  INNOVATION_MANAGER
+  CONTRIBUTOR
+  EVALUATOR
+  MODERATOR
+  IDEA_COACH
+  EXTERNAL_USER
+}
+
+enum CampaignRole {
+  MANAGER
+  SPONSOR
+  MODERATOR
+  EVALUATOR
+  SEEDING_TEAM
+  IDEA_COACH
+}
+
+// ============================================================
+// MODULE 2: CAMPAIGNS
+// ============================================================
+
+model Campaign {
+  id                  String          @id @default(cuid())
+  title               String
+  description         String?
+  status              CampaignStatus  @default(DRAFT)
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Relations
+  ideas               Idea[]
+  buckets             Bucket[]
+  members             CampaignMember[]
+}
+
+enum CampaignStatus {
+  DRAFT
+  SEEDING
+  SUBMISSION
+  DISCUSSION_VOTING
+  EVALUATION
+  CLOSED
+}
+
+model CampaignMember {
+  id          String       @id @default(cuid())
+  userId      String
+  campaignId  String
+  role        CampaignRole
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campaignId, role])
+}
+
+// ============================================================
+// MODULE 3: IDEAS & COMMUNITY
+// ============================================================
+
+model Idea {
+  id               String          @id @default(cuid())
+  title            String
+  description      String?
+  status           IdeaStatus      @default(DRAFT)
+  isConfidential   Boolean         @default(false)
+
+  // Creation tracking (for split/merge)
+  creationType     IdeaCreationType @default(DIRECT)
+  mergedFromIds    String[]         @default([])
+  splitFromId      String?
+
+  // Community metrics (denormalized)
+  viewCount        Int             @default(0)
+  commentCount     Int             @default(0)
+  likeCount        Int             @default(0)
+  voteCount        Int             @default(0)
+  avgVoteScore     Float?
+  isHot            Boolean         @default(false)
+  hotAt            DateTime?
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  // Relations
+  contributorId    String
+  contributor      User            @relation("IdeaContributor", fields: [contributorId], references: [id])
+  campaignId       String?
+  campaign         Campaign?       @relation(fields: [campaignId], references: [id])
+
+  coAuthors        IdeaCoAuthor[]
+  comments         Comment[]
+  votes            Vote[]
+  likes            Like[]
+  tags             IdeaTag[]
+  bucketAssignments IdeaBucket[]
+  activityLogs     ActivityLog[]
+}
+
+enum IdeaStatus {
+  DRAFT
+  QUALIFICATION
+  COMMUNITY_DISCUSSION
+  HOT
+  EVALUATION
+  SELECTED_CONCEPT
+  SELECTED_IMPLEMENTATION
+  IMPLEMENTED
+  IMPLEMENTATION_CANCELED
+  ARCHIVED
+}
+
+enum IdeaCreationType {
+  DIRECT
+  MERGED
+  SPLIT
+}
+
+model IdeaCoAuthor {
+  id      String @id @default(cuid())
+  ideaId  String
+  userId  String
+
+  idea    Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, userId])
+}
+
+model Comment {
+  id          String    @id @default(cuid())
+  content     String
+  isPrivate   Boolean   @default(false)
+
+  ideaId      String
+  idea        Idea      @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  parentId    String?
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentReplies")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Vote {
+  id          String  @id @default(cuid())
+  score       Float
+  criterionId String?
+
+  ideaId      String
+  idea        Idea    @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@unique([ideaId, userId, criterionId])
+}
+
+model Like {
+  id     String @id @default(cuid())
+  ideaId String
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([ideaId, userId])
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  ideas IdeaTag[]
+}
+
+model IdeaTag {
+  id     String @id @default(cuid())
+  ideaId String
+  tagId  String
+
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, tagId])
+}
+
+// ============================================================
+// MODULE 4: IDEA BOARD — BUCKETS
+// ============================================================
+
+model Bucket {
+  id          String    @id @default(cuid())
+  name        String
+  color       String?   @default("#6366F1")
+
+  isSmart     Boolean   @default(false)
+  smartFilter Json?
+
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  items       IdeaBucket[]
+}
+
+model IdeaBucket {
+  id       String @id @default(cuid())
+  ideaId   String
+  bucketId String
+
+  idea     Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  bucket   Bucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([ideaId, bucketId])
+}
+
+// ============================================================
+// MODULE 5: ACTIVITY LOG
+// ============================================================
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  entityType String
+  entityId  String
+  metadata  Json?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  ideaId    String?
+  idea      Idea?    @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+}
