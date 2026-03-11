@@ -78,6 +78,15 @@ export const Action = {
   ORGANIZATION_UPDATE: "organization.update",
   ORGANIZATION_DELETE: "organization.delete",
   ORGANIZATION_MANAGE_CONTACTS: "organization.manageContacts",
+
+  // Use case pipeline management
+  USE_CASE_CREATE: "useCase.create",
+  USE_CASE_READ: "useCase.read",
+  USE_CASE_UPDATE: "useCase.update",
+  USE_CASE_DELETE: "useCase.delete",
+  USE_CASE_TRANSITION: "useCase.transition",
+  USE_CASE_MANAGE_TEAM: "useCase.manageTeam",
+  USE_CASE_MANAGE_TASKS: "useCase.manageTasks",
 } as const;
 
 export type ActionType = (typeof Action)[keyof typeof Action];
@@ -124,6 +133,13 @@ export const GLOBAL_ROLE_PERMISSIONS: Record<GlobalRoleName, readonly ActionType
     Action.ORGANIZATION_UPDATE,
     Action.ORGANIZATION_DELETE,
     Action.ORGANIZATION_MANAGE_CONTACTS,
+    Action.USE_CASE_CREATE,
+    Action.USE_CASE_READ,
+    Action.USE_CASE_UPDATE,
+    Action.USE_CASE_DELETE,
+    Action.USE_CASE_TRANSITION,
+    Action.USE_CASE_MANAGE_TEAM,
+    Action.USE_CASE_MANAGE_TASKS,
   ],
   MEMBER: [
     Action.USER_READ_OWN,
@@ -141,6 +157,7 @@ export const GLOBAL_ROLE_PERMISSIONS: Record<GlobalRoleName, readonly ActionType
     Action.EVALUATION_PARTICIPATE,
     Action.NOTIFICATION_READ_OWN,
     Action.ORGANIZATION_READ,
+    Action.USE_CASE_READ,
   ],
 } as const;
 

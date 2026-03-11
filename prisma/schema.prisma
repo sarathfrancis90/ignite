@@ -56,6 +56,13 @@ model User {
   commentMentions     CommentMention[]             @relation("CommentMentioned")
   orgManagerAssignments OrganizationManager[]
   linkedContacts        Contact[]
+  createdUseCases       UseCase[]              @relation("UseCaseCreatedBy")
+  useCaseTeamMemberships UseCaseTeamMember[]   @relation("UseCaseTeamMember")
+  assignedUseCaseTasks  UseCaseTask[]          @relation("UseCaseTaskAssignee")
+  createdUseCaseTasks   UseCaseTask[]          @relation("UseCaseTaskCreatedBy")
+  useCaseDiscussions    UseCaseDiscussion[]    @relation("UseCaseDiscussionAuthor")
+  useCaseAttachments    UseCaseAttachment[]    @relation("UseCaseAttachmentUploader")
+  useCaseInteractions   UseCaseInteraction[]   @relation("UseCaseInteractionRecorder")
 
   @@map("users")
 }
@@ -645,6 +652,7 @@ model Organization {
 
   managers OrganizationManager[]
   contacts Contact[]
+  useCases UseCase[]
 
   @@index([relationshipStatus])
   @@index([name])
@@ -681,8 +689,9 @@ model Contact {
   linkedUserId     String?          @map("linked_user_id")
   createdAt        DateTime         @default(now()) @map("created_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  linkedUser   User?        @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedUser   User?              @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+  useCaseInteractions UseCaseInteraction[]
 
   @@index([organizationId])
   @@index([linkedUserId])
@@ -774,4 +783,181 @@ model SsoGroupMapping {
   @@unique([ssoProviderId, externalGroup, targetType])
   @@index([ssoProviderId])
   @@map("sso_group_mappings")
+}
+
+// ── Use Case Pipeline Models ────────────────────────────────
+
+enum UseCaseStatus {
+  IDENTIFIED
+  QUALIFICATION
+  EVALUATION
+  PILOT
+  PARTNERSHIP
+  ARCHIVED
+
+  @@map("use_case_status")
+}
+
+enum UseCasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("use_case_priority")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+
+  @@map("task_status")
+}
+
+enum InteractionType {
+  NOTE
+  MEETING
+  EMAIL
+  CALL
+  DEMO
+  OTHER
+
+  @@map("interaction_type")
+}
+
+model UseCase {
+  id               String          @id @default(cuid())
+  title            String
+  description      String?         @db.Text
+  status           UseCaseStatus   @default(IDENTIFIED)
+  previousStatus   UseCaseStatus?  @map("previous_status")
+  priority         UseCasePriority @default(MEDIUM)
+  organizationId   String          @map("organization_id")
+  createdById      String          @map("created_by_id")
+
+  // Pipeline tracking
+  qualifiedAt      DateTime?       @map("qualified_at")
+  evaluationAt     DateTime?       @map("evaluation_at")
+  pilotAt          DateTime?       @map("pilot_at")
+  partnershipAt    DateTime?       @map("partnership_at")
+  archivedAt       DateTime?       @map("archived_at")
+  archiveReason    String?         @map("archive_reason")
+
+  // Metadata
+  tags             String[]        @default([])
+  customFields     Json?           @map("custom_fields")
+  estimatedValue   String?         @map("estimated_value")
+  targetDate       DateTime?       @map("target_date")
+
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        User            @relation("UseCaseCreatedBy", fields: [createdById], references: [id])
+  teamMembers      UseCaseTeamMember[]
+  tasks            UseCaseTask[]
+  discussions      UseCaseDiscussion[]
+  attachments      UseCaseAttachment[]
+  interactions     UseCaseInteraction[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdById])
+  @@index([organizationId, status])
+  @@map("use_cases")
+}
+
+model UseCaseTeamMember {
+  id          String   @id @default(cuid())
+  useCaseId   String   @map("use_case_id")
+  userId      String   @map("user_id")
+  role        String   @default("member")
+  assignedAt  DateTime @default(now()) @map("assigned_at")
+
+  useCase     UseCase  @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+  user        User     @relation("UseCaseTeamMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([useCaseId, userId])
+  @@index([useCaseId])
+  @@index([userId])
+  @@map("use_case_team_members")
+}
+
+model UseCaseTask {
+  id          String     @id @default(cuid())
+  useCaseId   String     @map("use_case_id")
+  title       String
+  description String?    @db.Text
+  status      TaskStatus @default(TODO)
+  assigneeId  String?    @map("assignee_id")
+  dueDate     DateTime?  @map("due_date")
+  position    Int        @default(0)
+  createdById String     @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  useCase     UseCase    @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+  assignee    User?      @relation("UseCaseTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy   User       @relation("UseCaseTaskCreatedBy", fields: [createdById], references: [id])
+
+  @@index([useCaseId])
+  @@index([useCaseId, status])
+  @@index([assigneeId])
+  @@map("use_case_tasks")
+}
+
+model UseCaseDiscussion {
+  id          String   @id @default(cuid())
+  useCaseId   String   @map("use_case_id")
+  authorId    String   @map("author_id")
+  content     String   @db.Text
+  isInternal  Boolean  @default(true) @map("is_internal")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  useCase     UseCase  @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+  author      User     @relation("UseCaseDiscussionAuthor", fields: [authorId], references: [id])
+
+  @@index([useCaseId])
+  @@index([authorId])
+  @@map("use_case_discussions")
+}
+
+model UseCaseAttachment {
+  id          String   @id @default(cuid())
+  useCaseId   String   @map("use_case_id")
+  fileName    String   @map("file_name")
+  fileUrl     String   @map("file_url")
+  fileSize    Int      @map("file_size")
+  mimeType    String   @map("mime_type")
+  uploadedById String  @map("uploaded_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  useCase     UseCase  @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+  uploadedBy  User     @relation("UseCaseAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([useCaseId])
+  @@map("use_case_attachments")
+}
+
+model UseCaseInteraction {
+  id          String          @id @default(cuid())
+  useCaseId   String          @map("use_case_id")
+  type        InteractionType @default(NOTE)
+  summary     String
+  details     String?         @db.Text
+  occurredAt  DateTime        @default(now()) @map("occurred_at")
+  recordedById String         @map("recorded_by_id")
+  contactId   String?         @map("contact_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  useCase     UseCase  @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+  recordedBy  User     @relation("UseCaseInteractionRecorder", fields: [recordedById], references: [id])
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([useCaseId])
+  @@index([useCaseId, type])
+  @@map("use_case_interactions")
 }

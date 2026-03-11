@@ -11,6 +11,7 @@ import {
   Building2,
   Lock,
   DollarSign,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -225,6 +226,23 @@ export default function OrganizationDetailPage() {
             Created on {new Date(org.createdAt).toLocaleDateString()}
           </div>
         </CardContent>
+      </Card>
+
+      {/* Use Cases Pipeline Link */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Briefcase className="h-5 w-5 text-primary-600" />
+              Use Cases
+            </CardTitle>
+            <Link href={`/partners/${params.id}/usecases`}>
+              <Button variant="outline" size="sm">
+                View Pipeline
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
       </Card>
 
       {/* Contacts */}

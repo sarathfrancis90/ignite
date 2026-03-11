@@ -77,6 +77,19 @@ export interface EventMap {
   "sso.providerDisabled": EventPayload;
   "sso.userProvisioned": EventPayload;
   "sso.groupSynced": EventPayload;
+  "useCase.created": EventPayload;
+  "useCase.updated": EventPayload;
+  "useCase.transitioned": EventPayload;
+  "useCase.archived": EventPayload;
+  "useCase.unarchived": EventPayload;
+  "useCase.deleted": EventPayload;
+  "useCase.teamMemberAdded": EventPayload;
+  "useCase.teamMemberRemoved": EventPayload;
+  "useCase.taskCreated": EventPayload;
+  "useCase.taskUpdated": EventPayload;
+  "useCase.discussionCreated": EventPayload;
+  "useCase.attachmentAdded": EventPayload;
+  "useCase.interactionLogged": EventPayload;
 }
 
 export type EventName = keyof EventMap;
