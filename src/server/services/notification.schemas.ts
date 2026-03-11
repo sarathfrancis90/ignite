@@ -1,15 +1,7 @@
 import { z } from "zod";
+import { NOTIFICATION_TYPES } from "@/types/notification";
 
-export const NOTIFICATION_TYPES = [
-  "IDEA_SUBMITTED",
-  "IDEA_STATUS_CHANGED",
-  "IDEA_HOT_GRADUATION",
-  "EVALUATION_REQUESTED",
-  "CAMPAIGN_PHASE_CHANGED",
-  "COMMENT_ON_FOLLOWED",
-  "ROLE_ASSIGNED",
-  "SYSTEM",
-] as const;
+export { NOTIFICATION_TYPES } from "@/types/notification";
 
 export const notificationListInput = z.object({
   cursor: z.string().cuid().optional(),

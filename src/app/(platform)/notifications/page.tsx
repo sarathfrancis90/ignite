@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import { NOTIFICATION_TYPES } from "@/server/services/notification.schemas";
+import { NOTIFICATION_TYPES } from "@/types/notification";
 
 type NotificationTypeFilter = (typeof NOTIFICATION_TYPES)[number] | undefined;
 
