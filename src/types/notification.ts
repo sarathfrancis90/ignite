@@ -1,0 +1,12 @@
+export const NOTIFICATION_TYPES = [
+  "IDEA_SUBMITTED",
+  "IDEA_STATUS_CHANGED",
+  "IDEA_HOT_GRADUATION",
+  "EVALUATION_REQUESTED",
+  "CAMPAIGN_PHASE_CHANGED",
+  "COMMENT_ON_FOLLOWED",
+  "ROLE_ASSIGNED",
+  "SYSTEM",
+] as const;
+
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
