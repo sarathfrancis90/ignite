@@ -1,38 +1,48 @@
 import { z } from "zod";
 
-export const NOTIFICATION_TYPES = [
+export const notificationTypeEnum = z.enum([
   "IDEA_SUBMITTED",
   "IDEA_STATUS_CHANGED",
   "IDEA_HOT_GRADUATION",
   "EVALUATION_REQUESTED",
   "CAMPAIGN_PHASE_CHANGED",
   "COMMENT_ON_FOLLOWED",
+  "COMMENT_MENTION",
   "ROLE_ASSIGNED",
+  "ROLE_REMOVED",
   "SYSTEM",
-] as const;
+]);
+
+export const notificationCreateInput = z.object({
+  userId: z.string(),
+  type: notificationTypeEnum,
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(2000),
+  entityType: z.string().optional(),
+  entityId: z.string().optional(),
+});
 
 export const notificationListInput = z.object({
-  cursor: z.string().cuid().optional(),
+  cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(20),
-  type: z.enum(NOTIFICATION_TYPES).optional(),
-  isRead: z.boolean().optional(),
+  type: notificationTypeEnum.optional(),
+  unreadOnly: z.boolean().optional().default(false),
 });
 
 export const notificationMarkReadInput = z.object({
-  id: z.string().cuid(),
+  id: z.string(),
 });
 
-export const notificationMarkAllReadInput = z.object({});
-
-export const notificationCreateInput = z.object({
-  userId: z.string().cuid(),
-  type: z.enum(NOTIFICATION_TYPES),
-  title: z.string().min(1).max(200),
-  body: z.string().min(1).max(2000),
-  entityType: z.string().max(50).optional(),
-  entityId: z.string().cuid().optional(),
+export const notificationMarkAllReadInput = z.object({
+  type: notificationTypeEnum.optional(),
 });
 
+export const notificationDeleteInput = z.object({
+  id: z.string(),
+});
+
+export type NotificationCreateInput = z.infer<typeof notificationCreateInput>;
 export type NotificationListInput = z.infer<typeof notificationListInput>;
 export type NotificationMarkReadInput = z.infer<typeof notificationMarkReadInput>;
-export type NotificationCreateInput = z.infer<typeof notificationCreateInput>;
+export type NotificationMarkAllReadInput = z.infer<typeof notificationMarkAllReadInput>;
+export type NotificationDeleteInput = z.infer<typeof notificationDeleteInput>;

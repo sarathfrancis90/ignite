@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -78,7 +78,7 @@ export function Header({ sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
       </div>
 
       {/* Notifications */}
-      <NotificationBell />
+      <NotificationCenter />
 
       {/* User avatar */}
       <Avatar size="sm">

@@ -690,6 +690,43 @@ model Contact {
   @@map("contacts")
 }
 
+// ── Notification Models ──────────────────────────────────────
+
+enum NotificationType {
+  IDEA_SUBMITTED
+  IDEA_STATUS_CHANGED
+  IDEA_HOT_GRADUATION
+  EVALUATION_REQUESTED
+  CAMPAIGN_PHASE_CHANGED
+  COMMENT_ON_FOLLOWED
+  COMMENT_MENTION
+  ROLE_ASSIGNED
+  ROLE_REMOVED
+  SYSTEM
+
+  @@map("notification_type")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String           @map("user_id")
+  type       NotificationType
+  title      String
+  body       String           @db.Text
+  entityType String?          @map("entity_type") // "idea", "campaign", "comment", etc.
+  entityId   String?          @map("entity_id")
+  isRead     Boolean          @default(false) @map("is_read")
+  readAt     DateTime?        @map("read_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([type])
+  @@map("notifications")
+}
+
 // ── SSO Configuration Models ──────────────────────────────────
 
 enum SsoProviderType {
@@ -786,7 +823,9 @@ enum NotificationType {
   EVALUATION_REQUESTED
   CAMPAIGN_PHASE_CHANGED
   COMMENT_ON_FOLLOWED
+  COMMENT_MENTION
   ROLE_ASSIGNED
+  ROLE_REMOVED
   SYSTEM
 
   @@map("notification_type")
@@ -801,6 +840,7 @@ model Notification {
   entityType String?          @map("entity_type")
   entityId   String?          @map("entity_id")
   isRead     Boolean          @default(false) @map("is_read")
+  readAt     DateTime?        @map("read_at")
   createdAt  DateTime         @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
