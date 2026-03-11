@@ -6,7 +6,9 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import { NOTIFICATION_TYPES } from "@/server/services/notification.schemas";
+import { notificationTypeEnum } from "@/server/services/notification.schemas";
+
+const NOTIFICATION_TYPES = notificationTypeEnum.options;
 
 type NotificationTypeFilter = (typeof NOTIFICATION_TYPES)[number] | undefined;
 
@@ -25,9 +27,11 @@ export default function NotificationsPage() {
   const [typeFilter, setTypeFilter] = useState<NotificationTypeFilter>(undefined);
   const [readFilter, setReadFilter] = useState<boolean | undefined>(undefined);
 
+  const unreadOnly = readFilter === false ? true : readFilter === true ? false : undefined;
+
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
     trpc.notification.list.useInfiniteQuery(
-      { limit: 20, type: typeFilter, isRead: readFilter },
+      { limit: 20, type: typeFilter, unreadOnly: unreadOnly ?? false },
       { getNextPageParam: (lastPage) => lastPage.nextCursor },
     );
 
@@ -137,7 +141,7 @@ export default function NotificationsPage() {
                 ? "bg-primary-100 text-primary-700"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200",
             )}
-            onClick={() => setTypeFilter(type)}
+            onClick={() => setTypeFilter(type as (typeof NOTIFICATION_TYPES)[number])}
           >
             {TYPE_LABELS[type] ?? type}
           </button>
