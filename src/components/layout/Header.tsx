@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -77,9 +78,7 @@ export function Header({ sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
       </div>
 
       {/* Notifications */}
-      <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
-        <Bell className="h-5 w-5 text-gray-500" />
-      </Button>
+      <NotificationBell />
 
       {/* User avatar */}
       <Avatar size="sm">

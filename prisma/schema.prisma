@@ -41,19 +41,20 @@ model User {
   createdAt             DateTime              @default(now()) @map("created_at")
   updatedAt             DateTime              @updatedAt @map("updated_at")
 
-  accounts            Account[]
-  sessions            Session[]
-  userGroupMembership UserGroupMembership[]
-  orgUnitAssignments  UserOrgUnit[]
-  createdCampaigns    Campaign[]                  @relation("CampaignCreatedBy")
-  campaignMemberships CampaignMember[]
-  createdChannels     Channel[]                   @relation("ChannelCreatedBy")
-  channelMemberships  ChannelMember[]
-  spaceMemberships    InnovationSpaceMembership[]
-  contributedIdeas    Idea[]                      @relation("IdeaContributor")
-  coAuthoredIdeas     IdeaCoAuthor[]
-  comments            Comment[]                   @relation("CommentAuthor")
-  commentMentions     CommentMention[]             @relation("CommentMentioned")
+  accounts              Account[]
+  sessions              Session[]
+  userGroupMembership   UserGroupMembership[]
+  orgUnitAssignments    UserOrgUnit[]
+  createdCampaigns      Campaign[]                  @relation("CampaignCreatedBy")
+  campaignMemberships   CampaignMember[]
+  createdChannels       Channel[]                   @relation("ChannelCreatedBy")
+  channelMemberships    ChannelMember[]
+  spaceMemberships      InnovationSpaceMembership[]
+  contributedIdeas      Idea[]                      @relation("IdeaContributor")
+  coAuthoredIdeas       IdeaCoAuthor[]
+  comments              Comment[]                   @relation("CommentAuthor")
+  commentMentions       CommentMention[]            @relation("CommentMentioned")
+  notifications         Notification[]
   orgManagerAssignments OrganizationManager[]
   linkedContacts        Contact[]
 
@@ -480,11 +481,11 @@ enum IdeaStatus {
 }
 
 model Idea {
-  id             String     @id @default(cuid())
+  id             String      @id @default(cuid())
   title          String
-  teaser         String?    @db.Text
-  description    String?    @db.Text
-  status         IdeaStatus @default(DRAFT)
+  teaser         String?     @db.Text
+  description    String?     @db.Text
+  status         IdeaStatus  @default(DRAFT)
   previousStatus IdeaStatus? @map("previous_status")
 
   // Campaign association
@@ -496,15 +497,15 @@ model Idea {
   contributor   User   @relation("IdeaContributor", fields: [contributorId], references: [id])
 
   // Content
-  category           String?
-  tags               String[]  @default([])
-  customFieldValues  Json?     @map("custom_field_values")
-  attachments        Json?
-  isConfidential     Boolean   @default(false) @map("is_confidential")
+  category            String?
+  tags                String[] @default([])
+  customFieldValues   Json?    @map("custom_field_values")
+  attachments         Json?
+  isConfidential      Boolean  @default(false) @map("is_confidential")
   inventionDisclosure Boolean  @default(false) @map("invention_disclosure")
 
   // Full-text search vector (populated via database trigger)
-  searchVector  Unsupported("tsvector")? @map("search_vector")
+  searchVector Unsupported("tsvector")? @map("search_vector")
 
   // Engagement counters (denormalized for performance)
   likesCount    Int @default(0) @map("likes_count")
@@ -555,10 +556,10 @@ model Comment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  idea     Idea      @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  author   User      @relation("CommentAuthor", fields: [authorId], references: [id])
-  parent   Comment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
-  replies  Comment[] @relation("CommentThread")
+  idea     Idea             @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  author   User             @relation("CommentAuthor", fields: [authorId], references: [id])
+  parent   Comment?         @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[]        @relation("CommentThread")
   mentions CommentMention[]
 
   @@index([ideaId])
@@ -713,26 +714,26 @@ model SsoProvider {
   displayName String          @map("display_name")
 
   // SAML-specific fields
-  samlEntityId       String? @map("saml_entity_id")
-  samlSsoUrl         String? @map("saml_sso_url")
-  samlSloUrl         String? @map("saml_slo_url")
-  samlCertificate    String? @map("saml_certificate") @db.Text
-  samlMetadataUrl    String? @map("saml_metadata_url")
-  samlSignRequests   Boolean @default(false) @map("saml_sign_requests")
+  samlEntityId             String? @map("saml_entity_id")
+  samlSsoUrl               String? @map("saml_sso_url")
+  samlSloUrl               String? @map("saml_slo_url")
+  samlCertificate          String? @map("saml_certificate") @db.Text
+  samlMetadataUrl          String? @map("saml_metadata_url")
+  samlSignRequests         Boolean @default(false) @map("saml_sign_requests")
   samlWantAssertionsSigned Boolean @default(true) @map("saml_want_assertions_signed")
 
   // LDAP-specific fields
-  ldapUrl            String? @map("ldap_url")
-  ldapBindDn         String? @map("ldap_bind_dn")
-  ldapBindCredential String? @map("ldap_bind_credential")
-  ldapSearchBase     String? @map("ldap_search_base")
-  ldapSearchFilter   String? @map("ldap_search_filter")
-  ldapUseTls         Boolean @default(false) @map("ldap_use_tls")
-  ldapGroupSearchBase  String? @map("ldap_group_search_base")
+  ldapUrl               String? @map("ldap_url")
+  ldapBindDn            String? @map("ldap_bind_dn")
+  ldapBindCredential    String? @map("ldap_bind_credential")
+  ldapSearchBase        String? @map("ldap_search_base")
+  ldapSearchFilter      String? @map("ldap_search_filter")
+  ldapUseTls            Boolean @default(false) @map("ldap_use_tls")
+  ldapGroupSearchBase   String? @map("ldap_group_search_base")
   ldapGroupSearchFilter String? @map("ldap_group_search_filter")
 
   // Auto-provisioning settings
-  autoProvisionUsers Boolean @default(true) @map("auto_provision_users")
+  autoProvisionUsers Boolean    @default(true) @map("auto_provision_users")
   defaultRole        GlobalRole @default(MEMBER) @map("default_role")
 
   // Metadata
@@ -750,10 +751,10 @@ model SsoProvider {
 }
 
 model SsoAttributeMapping {
-  id             String @id @default(cuid())
-  ssoProviderId  String @map("sso_provider_id")
+  id              String @id @default(cuid())
+  ssoProviderId   String @map("sso_provider_id")
   sourceAttribute String @map("source_attribute")
-  targetField    String @map("target_field")
+  targetField     String @map("target_field")
 
   ssoProvider SsoProvider @relation(fields: [ssoProviderId], references: [id], onDelete: Cascade)
 
@@ -763,15 +764,49 @@ model SsoAttributeMapping {
 }
 
 model SsoGroupMapping {
-  id            String                   @id @default(cuid())
-  ssoProviderId String                   @map("sso_provider_id")
-  externalGroup String                   @map("external_group")
+  id            String                    @id @default(cuid())
+  ssoProviderId String                    @map("sso_provider_id")
+  externalGroup String                    @map("external_group")
   targetType    SsoGroupMappingTargetType @map("target_type")
-  targetValue   String                   @map("target_value") // role name or group ID
+  targetValue   String                    @map("target_value") // role name or group ID
 
   ssoProvider SsoProvider @relation(fields: [ssoProviderId], references: [id], onDelete: Cascade)
 
   @@unique([ssoProviderId, externalGroup, targetType])
   @@index([ssoProviderId])
   @@map("sso_group_mappings")
+}
+
+// ── Notification Models ─────────────────────────────────────
+
+enum NotificationType {
+  IDEA_SUBMITTED
+  IDEA_STATUS_CHANGED
+  IDEA_HOT_GRADUATION
+  EVALUATION_REQUESTED
+  CAMPAIGN_PHASE_CHANGED
+  COMMENT_ON_FOLLOWED
+  ROLE_ASSIGNED
+  SYSTEM
+
+  @@map("notification_type")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String           @map("user_id")
+  type       NotificationType
+  title      String
+  body       String           @db.Text
+  entityType String?          @map("entity_type")
+  entityId   String?          @map("entity_id")
+  isRead     Boolean          @default(false) @map("is_read")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type])
+  @@map("notifications")
 }
